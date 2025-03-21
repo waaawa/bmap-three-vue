@@ -1,0 +1,72 @@
+/** @protected */
+export class BlankMap extends BaseMap {
+    static EARTH_RADIUS: number;
+    constructor(engine: any, map: any, options?: {});
+    isBlankMap: boolean;
+    MERCATOR_LENGTH: number;
+    projectionCoordsName: string;
+    origin: number[];
+    center: number[];
+    zoom: number;
+    pitch: number;
+    heading: number;
+    bounds: number[][];
+    near: number;
+    _far: number;
+    fov: number;
+    _engine: any;
+    domContainer: any;
+    afterInit(): void;
+    initControl(): void;
+    control: MapControl | undefined;
+    getContainerSize(): any[];
+    getResolution(): any;
+    getCenter(): number[];
+    getZoom(): number;
+    getPitch(): number;
+    getZoomUnitsByZoom(zoom: any): number;
+    getZoomByZoomUnits(zoomUnits: any): number;
+    getZoomUnits(): number;
+    getHeading(): number;
+    enableControl(): void;
+    disableControl(): void;
+    handleViewChange: () => void;
+    handleMapResize: () => void;
+    handleEventClick: (e: any) => void;
+    handleEventDblClick: (e: any) => void;
+    handleEventPointerDown: (e: any) => void;
+    handleEventPointerUp: (e: any) => void;
+    handleEventMouseMove: (e: any) => void;
+    _getPixelFromEvent: (e: any) => number[];
+    setCameraMatrix(): void;
+    updateCamera(): void;
+    computeMapCameraMatrix(camera: any, center: any, zoom: any, pitch: any, heading: any): void;
+    zoomUnits: number | undefined;
+    cameraDistance: number | undefined;
+    setCenter(center: any): void;
+    setProjectionCenter(projectionCenter: any): void;
+    setZoom(zoom: any): void;
+    zoomIn(): void;
+    zoomOut(): void;
+    setHeading(heading: any): void;
+    setPitch(pitch: any): void;
+    setMaxRange(range: any): void;
+    lookAt(target: any, offset?: {}): void;
+    setBounds(bounds: any): void;
+    /**
+     * @deprecated
+     */
+    getBoundsOld(): any;
+    getBoundsLarger(): any;
+    getBounds(): any;
+    normalizeMapPoint(input: any): number[];
+    normalizeProjectionPointArr(input: any): number[];
+    normalizeEarthPointArr(input: any): number[];
+    updateView(): void;
+    getCameraDistance(): number | undefined;
+    getProjectionCenter(): number[];
+    set far(arg: number);
+    get far(): number;
+}
+import { BaseMap } from "./BaseMap";
+import { MapControl } from "../../../threejs/controls/MapControl";

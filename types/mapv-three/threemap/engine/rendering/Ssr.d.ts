@@ -1,0 +1,31 @@
+export class RenderingSsr {
+    constructor(rendering: any);
+    _rendering: any;
+    _enabled: boolean;
+    _renderPass: any;
+    _threshold: number;
+    _thickness: number;
+    _opacity: number;
+    _useMrt: boolean;
+    set useMrt(arg: boolean);
+    get useMrt(): boolean;
+    set enabled(arg: boolean);
+    get enabled(): boolean;
+    _init(): void;
+    _ssrRenderTarget: any;
+    render(): void;
+    dispose(): void;
+    getTextures(): any[];
+    setSize(width: any, height: any): void;
+    get tReflection(): any;
+    set threshold(arg: number);
+    get threshold(): number;
+    set thickness(arg: number);
+    get thickness(): number;
+    set opacity(arg: number);
+    get opacity(): number;
+    set tEnhancement(arg: any);
+    get tEnhancement(): any;
+    set tEnhancementScale(arg: any);
+    get tEnhancementScale(): any;
+}

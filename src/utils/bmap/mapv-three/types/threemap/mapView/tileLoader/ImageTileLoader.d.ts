@@ -1,0 +1,6 @@
+export class ImageTileLoader extends TileLoader {
+    isImageryTileLoader: boolean;
+    getTileURL(z: any, x: any, y: any, tile: any): void;
+    loadImage(tile: any): Promise<any>;
+}
+import { TileLoader } from "./TileLoader";

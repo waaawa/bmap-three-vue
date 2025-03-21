@@ -1,0 +1,9 @@
+export function createGui(mt: any): any;
+export function createEngineConfigs(gui: any, engine: any): void;
+export function createSkyConfigs(gui: any, engine: any): void;
+export function createWeatherConfigs(gui: any, engine: any): void;
+export function create3DTilesConfigs(gui: any, engine: any, tiles: any, name: any): any;
+export function createWaterConfigs(gui: any, engine: any, waterMaterial: any, name?: string): void;
+export function createHeightMaterialConfigs(gui: any, engine: any, material: any, name?: string): void;
+export function createTerrainConfigs(gui: any, engine: any, terrain: any, name?: string): any;
+export function createQuadMapConfigs(gui: any, engine: any, quadMap: any): any;

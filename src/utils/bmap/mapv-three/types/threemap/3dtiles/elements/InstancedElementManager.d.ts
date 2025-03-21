@@ -1,0 +1,33 @@
+export class InstancedElementManager {
+    _lastUpdateTime: number;
+    _updateDelayTimerHander: any;
+    _configVersion: number;
+    _treeEnabled: boolean;
+    _labelEnabled: boolean;
+    _idEnabled: boolean;
+    _dataTypeEnabled: boolean;
+    group: any;
+    _tree: LODDynamicInstancedMesh;
+    markNeedsUpdate: () => void;
+    parseInstancedData: (object: any, tile: any) => void;
+    parseLabelData: (object: any, tile: any) => void;
+    remapBatchValueToNumber: (value: any) => any;
+    parseBatchTableAttribute: (tile: any, property: any, attributeName: any) => void;
+    onTileLoad: (tile: any, scene: any) => void;
+    onTileDispose: (tile: any, scene: any) => void;
+    onTileShow: (tile: any) => void;
+    onTileHide: (tile: any) => void;
+    refreshTile: (tile: any) => void;
+    refreshTiles: () => void;
+    updateTreeModelPath: (path: any) => void;
+    set treeModelPath(arg: any);
+    set treeEnabled(arg: boolean);
+    get treeEnabled(): boolean;
+    set labelEnabled(arg: boolean);
+    get labelEnabled(): boolean;
+    set idEnabled(arg: boolean);
+    get idEnabled(): boolean;
+    set dataTypeEnabled(arg: boolean);
+    get dataTypeEnabled(): boolean;
+}
+import { LODDynamicInstancedMesh } from "../../../threejs/objects/instance/LODDynamicInstancedMesh";

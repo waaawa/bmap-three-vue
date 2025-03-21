@@ -1,0 +1,6 @@
+export class BinaryTileLoader extends TileLoader {
+    getTileURL(z: any, x: any, y: any, tile: any): void;
+    getFetchOptions(tile: any): void;
+    processTileResult(result: any, tile: any): Promise<any>;
+}
+import { TileLoader } from "./TileLoader";

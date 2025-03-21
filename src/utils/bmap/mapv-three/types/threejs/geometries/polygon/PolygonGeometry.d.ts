@@ -1,0 +1,37 @@
+export class PolygonGeometry {
+    constructor(parameters: any);
+    isPolygonGeometry: boolean;
+    _useUV: boolean;
+    _sideUVNormalized: boolean;
+    _sideUVReversed: boolean;
+    _sideUVUseHeight: boolean;
+    parameters: any;
+    _needsUpdate: boolean;
+    _extrude: any;
+    _extrudeValue: any;
+    _enableBottomFace: any;
+    _zOffset: any;
+    cachedPositions: any[];
+    cachedObjectIndices: any[];
+    addGeoPolygonToVertices: (flattenCoords: any, triangles: any, height: number | undefined, indexOffset: number | undefined, positions: any, indices: any, normals: any, uvs: any, colors: any, color: any, aObjectIndices: any, objectIndex: any, isClockWise?: boolean) => void;
+    isClockWise: (contour: any) => boolean;
+    addSideFace: (coordinates: any, height: any, indexOffset: any, aPositions: any, indices: any, normals: any, uvs: any, colors: any, color: any, aObjectIndices: any, objectIndex: any) => void;
+    setData(data: any): void;
+    cachedData: any;
+    updateGeometry(): void;
+    crossVectors3: (a: any, b: any) => number[];
+    set extrude(arg: any);
+    get extrude(): any;
+    set extrudeValue(arg: any);
+    get extrudeValue(): any;
+    set sideUVNormalized(arg: boolean);
+    get sideUVNormalized(): boolean;
+    set sideUVReversed(arg: boolean);
+    get sideUVReversed(): boolean;
+    set sideUVUseHeight(arg: boolean);
+    get sideUVUseHeight(): boolean;
+    set useUV(arg: boolean);
+    get useUV(): boolean;
+    set needsUpdate(arg: boolean);
+    get needsUpdate(): boolean;
+}

@@ -1,0 +1,20 @@
+export class HDMapVisibility {
+    constructor(tiles: any);
+    _hiddenIds: Set<any>;
+    _hiddenLayers: Set<any>;
+    _tiles: any;
+    _engine: any;
+    shouldBeHidden: (batchTable: any, batchId: any) => boolean;
+    addHiddenId(id: any): void;
+    addHiddenIds(ids: any): void;
+    isEntityHidden(id: any): boolean;
+    removeHiddenId(id: any): void;
+    removeHiddenIds(ids: any): void;
+    clearHiddenIds(): void;
+    addHiddenLayer(id: any): void;
+    addHiddenLayers(ids: any): void;
+    removeHiddenLayer(id: any): void;
+    removeHiddenLayers(ids: any): void;
+    clearHiddenLayers(): void;
+    isLayerHidden(id: any): boolean;
+}
