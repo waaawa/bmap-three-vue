@@ -40,9 +40,11 @@ export async function useTubeManager({ config, engine, data }) {
   let pos = arrify(data);
   let model;
 
-  initModel(pos);
+  initModel([...pos]);
 
-  function getGeometry(path, radius, radiusSegments, closed) {
+  function getGeometry(data, radius, radiusSegments, closed) {
+    const path = getPath(data);
+
     const geo = new TubePath(
       path,
       TubePath.pathToUMapping(path, elbowSegmentNum, elbowSegmentOffset),
@@ -61,9 +63,7 @@ export async function useTubeManager({ config, engine, data }) {
   function initModel(data) {
     if (data.length < 2 || model) return;
 
-    const path = getPath(data);
-
-    const geometry = getGeometry(path, radius, radiusSegments, closed);
+    const geometry = getGeometry(data, radius, radiusSegments, closed);
 
     const material = new THREE.MeshBasicMaterial({
       vertexColors: true,
@@ -77,7 +77,9 @@ export async function useTubeManager({ config, engine, data }) {
     lineManager.addFlyLine({
       name: "tubeFlyLine",
       config: {
-        vertexColors: true,
+        color: "white",
+        lineWidth: 10,
+        vertexColors: false,
       },
       data: data,
     });
@@ -132,16 +134,14 @@ export async function useTubeManager({ config, engine, data }) {
     pos.push(...arrify(data));
 
     if (model) {
-      const path = getPath(pos);
-
-      const geometry = getGeometry(path, radius, radiusSegments, closed);
+      const geometry = getGeometry([...pos], radius, radiusSegments, closed);
 
       model.geometry.dispose();
       model.geometry = geometry;
 
-      lineManager.setLine("tubeFlyLine", pos);
+      lineManager.setLine("tubeFlyLine", data);
     } else {
-      initModel(pos);
+      initModel([...pos]);
     }
   }
 
