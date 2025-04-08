@@ -10,10 +10,17 @@ import { useLineManager } from "./line-manager";
  * @param {Array<Array<number>>} options.path - 路径点数组，每个点为[x,y,z]格式
  * @returns {Promise<THREE.Mesh>} 返回创建的管道mesh对象
  * @example
- * const mesh = await useTubeManager({
- *   engine: threeEngine,
- *   path: [[0,0,0], [10,10,10], [20,20,20]]
- * });
+ *  const tubeManager = await useTubeManager({
+ *    engine: this.$engine,
+ *    data: this.lineData,
+ *  });
+ *
+ *  this.$engine.event.bind("click", (e) => {
+ *    tubeManager.addTube({
+ *      position: [...e.point, randomRange(10, 40)],
+ *      color: randomHexColorStr(),
+ *    });
+ *  });
  */
 export async function useTubeManager({ config, engine, data }) {
   const {
@@ -25,12 +32,12 @@ export async function useTubeManager({ config, engine, data }) {
     elbowSegmentOffset,
   } = Object.assign(
     {
-      radius: 5,
-      radiusSegments: 14,
+      radius: 1,
+      radiusSegments: 8,
       closed: false,
       normalColor: 0x00ffff,
-      elbowSegmentNum: 3,
-      elbowSegmentOffset: 0.3,
+      elbowSegmentNum: 20,
+      elbowSegmentOffset: 0.2,
     },
     config
   );
@@ -67,11 +74,11 @@ export async function useTubeManager({ config, engine, data }) {
 
     const material = new THREE.MeshBasicMaterial({
       vertexColors: true,
-      transparent: true,
-      opacity: 0.3,
+      transparent: false,
+      opacity: 0.8,
       side: THREE.DoubleSide,
       depthTest: true,
-      depthWrite: false,
+      depthWrite: true,
     });
 
     lineManager.addFlyLine({
@@ -143,6 +150,8 @@ export async function useTubeManager({ config, engine, data }) {
     } else {
       initModel([...pos]);
     }
+
+    console.log(pos);
   }
 
   return { addTube };
