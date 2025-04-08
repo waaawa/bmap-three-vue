@@ -14,6 +14,7 @@ export async function useUAVManager({
   onProgress,
   engine,
   offset = [0, 0, 0],
+  rotation = [Math.PI * 0.5, 0, 0],
 }) {
   try {
     const gltf = await loadGLTF({
@@ -46,6 +47,7 @@ export async function useUAVManager({
         return;
       }
 
+      /** @type {THREE.Object3D} */
       const instance = model.clone();
 
       instance.name = name;
@@ -63,7 +65,9 @@ export async function useUAVManager({
 
       const pos = engine.map.projectPointArr(position);
 
-      instance.rotation.x = Math.PI * 0.5;
+      instance.rotation.x = rotation[0];
+      instance.rotation.y = rotation[1];
+      instance.rotation.z = rotation[2];
 
       instance.position.set(...getFixPos(pos));
 
@@ -127,7 +131,7 @@ export async function useUAVManager({
      */
     const moveConfig = {};
 
-    const moveTo = ({ name, position, step = 0.2 }) => {
+    const moveTo = ({ name, position, step = 0.02 }) => {
       if (!record[name]) return;
 
       const posArr = [];
@@ -174,7 +178,11 @@ export async function useUAVManager({
         if (item.path && item.t < item.max) {
           item.t = Math.min(item.max, item.t + item.step);
 
-          setPosition(item.name, item.path.getPointAt(item.t / item.max));
+          const v = Math.floor((item.t / item.max) * 10000) / 10000;
+
+          console.log(v);
+
+          setPosition(item.name, item.path.getPointAt(v));
         }
       });
 
