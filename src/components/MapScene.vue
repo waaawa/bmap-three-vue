@@ -212,7 +212,7 @@ export default {
         // onProgress: (v) => {
         //   console.log(v);
         // },
-        offset: [-28, 0, 0],
+        offset: [0, 0, 0],
         engine: this.$engine,
       });
     },

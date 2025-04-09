@@ -126,7 +126,7 @@ export async function useUAVManager({
     };
 
     /**
-     * @typedef {{ t:number, step: number, points: THREE.Vector3[], max: number, path: THREE.CatmullRomCurve3 }} IMoveConfig
+     * @typedef {{ t:number, step: number, points: THREE.Vector3[], max: number, ind: number, len: number, a: THREE.Vector3, b: THREE.Vector3 }} IMoveConfig
      * @type {Record<string, IMoveConfig>}
      */
     const moveConfig = {};
@@ -148,41 +148,54 @@ export async function useUAVManager({
 
       if (!moveConfig[name]) {
         const points = [record[name].instance.position.clone(), ...posArr];
-        const path = new THREE.CatmullRomCurve3(points, false, "catmullrom", 0);
-        const max = path.getLength();
+        const max = points.length;
 
         moveConfig[name] = {
           t: 0,
           step,
+          ind: 0,
           max,
           name,
+          a: points[0].clone(),
+          b: points[1].clone(),
+          len: points[0].distanceTo(points[1]), // 计算两点距离，用于计算移动进度，
           points,
-          path,
         };
       } else {
         moveConfig[name].points.push(...posArr);
 
-        moveConfig[name].path = new THREE.CatmullRomCurve3(
-          moveConfig[name].points,
-          false,
-          "catmullrom",
-          0
-        );
-
-        moveConfig[name].max = moveConfig[name].path.getLength();
+        moveConfig[name].max = moveConfig[name].points.length;
       }
     };
 
     const update = (t, name) => {
       Object.values(moveConfig).forEach((item) => {
-        if (item.path && item.t < item.max) {
-          item.t = Math.min(item.max, item.t + item.step);
+        // 跳转到下一段路径
+        if (item.t >= item.len && item.max - 2 > item.ind) {
+          item.ind += 1;
+          item.t = 0;
 
-          const v = Math.floor((item.t / item.max) * 10000) / 10000;
+          item.a = item.points[item.ind].clone();
+          item.b = item.points[item.ind + 1].clone();
 
-          console.log(v);
+          // 计算模型朝向
+          const dir = item.b.clone().sub(item.a).normalize();
+          const angle = Math.atan2(dir.y, dir.x);
 
-          setPosition(item.name, item.path.getPointAt(v));
+          record[item.name].instance.rotation.y = angle + Math.PI / 2;
+
+          item.len = item.a.distanceTo(item.b);
+        }
+
+        // 当前路段移动
+        if (item.max - 1 > item.ind && item.t < item.len) {
+          item.t += item.step;
+
+          const r = item.t / item.len;
+
+          const p = item.a.clone().lerp(item.b, Math.min(1, r));
+
+          setPosition(item.name, p);
         }
       });
 
