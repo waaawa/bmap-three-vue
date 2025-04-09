@@ -290,6 +290,10 @@ export default {
         position: this.lineData.map((e) => e.position),
       });
 
+      this.$uavManager.onMove((item) => {
+        console.log(item);
+      });
+
       console.log(this.$uavManager);
 
       this.$engine.event.bind("click", (e) => {
