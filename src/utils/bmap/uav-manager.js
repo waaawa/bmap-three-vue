@@ -150,15 +150,24 @@ export async function useUAVManager({
         const points = [record[name].instance.position.clone(), ...posArr];
         const max = points.length;
 
+        const a = points[0].clone();
+        const b = points[1].clone();
+        const len = a.distanceTo(b); // 计算两点距离，用于计算移动进度，
+
+        const dir = b.clone().sub(a).normalize();
+        const angle = Math.atan2(dir.y, dir.x);
+
+        record[name].instance.rotation.y = angle + Math.PI / 2;
+
         moveConfig[name] = {
           t: 0,
           step,
           ind: 0,
           max,
           name,
-          a: points[0].clone(),
-          b: points[1].clone(),
-          len: points[0].distanceTo(points[1]), // 计算两点距离，用于计算移动进度，
+          a,
+          b,
+          len, // 计算两点距离，用于计算移动进度，
           points,
         };
       } else {
