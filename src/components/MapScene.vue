@@ -25,7 +25,8 @@ export default {
   },
   data() {
     return {
-      lineData: [
+      lineData: [],
+      lineData2: [
         {
           color: "#ffff00",
           position: [12956455.078979049, 4825523.581885624, 10],
@@ -248,6 +249,8 @@ export default {
         basicData: this.lineData,
         flyData: this.lineData,
       });
+
+      this.$lineManager = lineManager;
     },
 
     async addTube() {
@@ -284,21 +287,37 @@ export default {
         },
       });
 
-      this.$uavManager.moveTo({
-        name: "aaa",
-        step: 2,
-        position: this.lineData.map((e) => e.position),
-      });
-
       this.$uavManager.onMove((item) => {
-        console.log(item);
-      });
+        const { x, y, z } = item.points[item.ind + 1];
 
-      console.log(this.$uavManager);
+        const data = [
+          {
+            position: [x, y, z],
+            color: randomHexColorStr(),
+          },
+        ];
+
+        if (item.ind === 0) {
+          const { x, y, z } = item.points[item.ind];
+          data.unshift({
+            position: [x, y, z],
+            color: randomHexColorStr(),
+          });
+        }
+
+        this.$lineManager.setAggregationLine({
+          name: "line",
+          flyData: [...data],
+          basicData: [...data],
+        });
+
+        console.log(this.$lineManager.record);
+      });
 
       this.$engine.event.bind("click", (e) => {
         this.$uavManager.moveTo({
           name: "aaa",
+          step: 2,
           position: [...e.point, 10],
         });
       });

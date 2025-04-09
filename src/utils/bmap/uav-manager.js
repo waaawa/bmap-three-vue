@@ -171,38 +171,46 @@ export async function useUAVManager({
     }
   };
 
+  function updateMoveConfig(item) {
+    if (item.points.length < 2) return;
+
+    // 跳转到下一段路径
+    if (item.t >= item.len && item.max - 2 > item.ind) {
+      item.ind += 1;
+      item.t = 0;
+
+      item.a = item.points[item.ind].clone();
+      item.b = item.points[item.ind + 1].clone();
+
+      // 计算模型朝向
+      const dir = item.b.clone().sub(item.a).normalize();
+      const angle = Math.atan2(dir.y, dir.x);
+
+      record[item.name].instance.rotation.y = angle + Math.PI / 2;
+
+      item.len = item.a.distanceTo(item.b);
+    }
+
+    // 当前路段移动
+    if (item.max - 1 > item.ind && item.t < item.len) {
+      item.t += item.step;
+
+      const r = Math.min(1, item.t / item.len);
+
+      const p = item.a.clone().lerp(item.b, r);
+
+      if (r === 1) {
+        moveSubs.forEach((cb) => cb(item));
+      }
+
+      setPosition(item.name, p);
+    }
+  }
+
   const update = (t, name) => {
     try {
       Object.values(moveConfig).forEach((item) => {
-        // 跳转到下一段路径
-        if (item.t >= item.len && item.max - 2 > item.ind) {
-          item.ind += 1;
-          item.t = 0;
-
-          item.a = item.points[item.ind].clone();
-          item.b = item.points[item.ind + 1].clone();
-
-          // 计算模型朝向
-          const dir = item.b.clone().sub(item.a).normalize();
-          const angle = Math.atan2(dir.y, dir.x);
-
-          record[item.name].instance.rotation.y = angle + Math.PI / 2;
-
-          item.len = item.a.distanceTo(item.b);
-
-          moveSubs.forEach((cb) => cb(item));
-        }
-
-        // 当前路段移动
-        if (item.max - 1 > item.ind && item.t < item.len) {
-          item.t += item.step;
-
-          const r = item.t / item.len;
-
-          const p = item.a.clone().lerp(item.b, Math.min(1, r));
-
-          setPosition(item.name, p);
-        }
+        updateMoveConfig(item);
       });
 
       if (name) {
