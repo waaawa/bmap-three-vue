@@ -1,17 +1,6 @@
-var __defNormalProp = (e, t, i) => {
-  return t in e
-    ? Object.defineProperty(e, t, {
-        enumerable: !0,
-        configurable: !0,
-        writable: !0,
-        value: i,
-      })
-    : (e[t] = i);
-};
-
-var __publicField = (e, t, i) => (
-  __defNormalProp(e, "symbol" != typeof t ? t + "" : t, i), i
-);
+const { makeHeatmap3DClass } = require("./Heatmap3D");
+const { makeHeatmapClass } = require("./Heatmap");
+const { __publicField } = require("./utils");
 
 const t = "mapv";
 
@@ -4443,6 +4432,7 @@ const ri = new gt(),
   fi = new gt(0, 0, 1),
   mi = { type: "added" },
   gi = { type: "removed" };
+
 class _i extends Me {
   constructor() {
     super(),
@@ -4871,6 +4861,7 @@ class _i extends Me {
     return this;
   }
 }
+
 (_i.DEFAULT_UP = new gt(0, 1, 0)),
   (_i.DEFAULT_MATRIX_AUTO_UPDATE = !0),
   (_i.DEFAULT_MATRIX_WORLD_AUTO_UPDATE = !0);
@@ -33876,6 +33867,7 @@ class hv {
     return this._renderComposer;
   }
 }
+
 class cv extends _i {
   constructor(e) {
     super(),
@@ -33970,6 +33962,7 @@ class cv extends _i {
     this._receiveRaycast = e;
   }
 }
+
 function uv(e) {
   var t,
     i = Math.PI / 180,
@@ -33991,6 +33984,7 @@ function uv(e) {
     r
   );
 }
+
 function dv(e) {
   var t = 180 / Math.PI,
     i = 6378137;
@@ -33999,9 +33993,11 @@ function dv(e) {
     (0.5 * Math.PI - 2 * Math.atan(Math.exp(-e[1] / i))) * t,
   ];
 }
+
 function pv(e, t, i) {
   return Math.max(t, Math.min(i, e));
 }
+
 class fv {
   constructor(e = 0, t = 0) {
     (fv.prototype.isVector2 = !0), (this.x = e), (this.y = t);
@@ -36741,11 +36737,13 @@ class gA extends cv {
           (this.material.visible = !0)));
   }
 }
+
 class _A extends gA {
   constructor() {
     super(...arguments), __publicField(this, "isMesh", !0);
   }
 }
+
 function vA(e) {
   let t = 0,
     i = 0;
@@ -62446,107 +62444,8 @@ class hD extends AA {
       this.setValues(e);
   }
 }
-var cD = { exports: {} };
-!(function (e) {
-  function t(e) {
-    if (!(this instanceof t)) return new t(e);
-    (this._canvas = e = "string" == typeof e ? document.getElementById(e) : e),
-      (this._ctx = e.getContext("2d")),
-      (this._width = e.width),
-      (this._height = e.height),
-      (this._max = 1),
-      (this._data = []);
-  }
-  (e.exports = t),
-    (t.prototype = {
-      defaultRadius: 25,
-      defaultGradient: {
-        0.4: "blue",
-        0.6: "cyan",
-        0.7: "lime",
-        0.8: "yellow",
-        1: "red",
-      },
-      data: function (e) {
-        return (this._data = e), this;
-      },
-      max: function (e) {
-        return (this._max = e), this;
-      },
-      add: function (e) {
-        return this._data.push(e), this;
-      },
-      clear: function () {
-        return (this._data = []), this;
-      },
-      radius: function (e, t) {
-        t = void 0 === t ? 15 : t;
-        var i = (this._circle = this._createCanvas()),
-          n = i.getContext("2d"),
-          s = (this._r = e + t);
-        return (
-          (i.width = i.height = 2 * s),
-          (n.shadowOffsetX = n.shadowOffsetY = 2 * s),
-          (n.shadowBlur = t),
-          (n.shadowColor = "black"),
-          n.beginPath(),
-          n.arc(-s, -s, e, 0, 2 * Math.PI, !0),
-          n.closePath(),
-          n.fill(),
-          this
-        );
-      },
-      resize: function () {
-        (this._width = this._canvas.width),
-          (this._height = this._canvas.height);
-      },
-      gradient: function (e) {
-        var t = this._createCanvas(),
-          i = t.getContext("2d"),
-          n = i.createLinearGradient(0, 0, 0, 256);
-        for (var s in ((t.width = 1), (t.height = 256), e))
-          n.addColorStop(+s, e[s]);
-        return (
-          (i.fillStyle = n),
-          i.fillRect(0, 0, 1, 256),
-          (this._grad = i.getImageData(0, 0, 1, 256).data),
-          this
-        );
-      },
-      draw: function (e) {
-        this._circle || this.radius(this.defaultRadius),
-          this._grad || this.gradient(this.defaultGradient);
-        var t = this._ctx;
-        t.clearRect(0, 0, this._width, this._height);
-        for (var i, n = 0, s = this._data.length; n < s; n++)
-          (i = this._data[n]),
-            (t.globalAlpha = Math.max(
-              i[2] / this._max,
-              void 0 === e ? 0.05 : e
-            )),
-            t.drawImage(this._circle, i[0] - this._r, i[1] - this._r);
-        var r = t.getImageData(0, 0, this._width, this._height);
-        return (
-          this._colorize(r.data, this._grad), t.putImageData(r, 0, 0), this
-        );
-      },
-      _colorize: function (e, t) {
-        for (var i, n = 0, s = e.length; n < s; n += 4)
-          (i = 4 * e[n + 3]) &&
-            ((e[n] = t[i]), (e[n + 1] = t[i + 1]), (e[n + 2] = t[i + 2]));
-      },
-      _createCanvas: function () {
-        return "undefined" != typeof document
-          ? document.createElement("canvas")
-          : new this._canvas.constructor();
-      },
-    });
-})(cD);
-const uD = cD.exports;
-function dD(e, t) {
-  let i = document.createElement("canvas");
-  return e && (i.width = e), t && (i.height = t), i;
-}
+
+
 class pD extends rn {
   constructor() {
     super(...arguments),
@@ -90605,269 +90504,10 @@ loadStyle('.mapv-controls-pane{position:absolute;z-index:15;bottom:0;left:0;righ
         this.material.setCommonUniforms(this.engine.rendering.uniforms);
     }
   }
-  exports.Heatmap = class extends _A {
-    constructor(e) {
-      super(e),
-        __publicField(this, "isHeatmap", !0),
-        __publicField(this, "frustumCulled", !1),
-        __publicField(this, "geometry"),
-        __publicField(this, "material"),
-        __publicField(this, "scene"),
-        __publicField(this, "pointMesh"),
-        __publicField(this, "pointMaterial"),
-        __publicField(this, "pointGeometry"),
-        __publicField(this, "renderTarget"),
-        __publicField(this, "depthMaterial"),
-        __publicField(this, "depthRenderTarget"),
-        (this.parameters = e),
-        this.defineMaterialProxyProperties(["resolution"]);
-    }
-    getDefaultParams() {
-      return {
-        radius: 100,
-        maxValue: 1,
-        gradient: {
-          0: "rgba(0,0,255,1)",
-          0.3: "rgba(0,255,0,1)",
-          0.6: "rgba(255,255,0,1)",
-          1: "rgba(255,0,0,1)",
-        },
-      };
-    }
-    initObject() {
-      let e = this.parameters;
-      const t = (this.geometry = new rn());
-      t.setAttribute(
-        "position",
-        new Wi(new Float32Array([-1, 1, 0, 1, 1, 0, -1, -1, 0, 1, -1, 0]), 3)
-      ),
-        t.setAttribute(
-          "uv",
-          new Wi(new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]), 2)
-        ),
-        t.setIndex([0, 2, 1, 2, 3, 1]);
-      (this.material = new iD({})).setCommonUniforms(
-        this.engine.rendering.uniforms
-      );
-      const [i, n] = this.resolution || [],
-        s = (this.scene = new wa());
-      (this.renderTarget = new ut(i, n)),
-        (this.depthRenderTarget = new ut(i, n, {})),
-        (this.depthMaterial = new aD({ keepSize: this.parameters.keepSize }));
-      const r = (this.pointGeometry = new oD()),
-        a = (this.pointMaterial = new sD({
-          keepSize: this.parameters.keepSize,
-        }));
-      a.setCommonUniforms(this.engine.rendering.uniforms),
-        this.depthMaterial.setCommonUniforms(this.engine.rendering.uniforms);
-      const o = (this.pointMesh = new _R(r, a));
-      (o.engine = this.engine),
-        (this.pointMesh.matrixAutoUpdate = !0),
-        (o.frustumCulled = !1),
-        s.add(o),
-        (this.material.uniforms.heatmap.value = this.renderTarget.texture),
-        (this.material.uniforms.heatmapDepth.value =
-          this.depthRenderTarget.texture),
-        void 0 !== e.gradient && (this.gradient = e.gradient),
-        void 0 !== e.radius && (this.radius = e.radius),
-        void 0 !== e.minValue && (this.minValue = e.minValue),
-        void 0 !== e.maxValue && (this.maxValue = e.maxValue),
-        void 0 !== e.opacity && (this.opacity = e.opacity),
-        void 0 !== e.keepSize && (this.keepSize = e.keepSize),
-        void 0 !== e.attenuateMValueFactor &&
-          (this.attenuateMValueFactor = e.attenuateMValueFactor);
-    }
-    onBeforeSceneRenderHook(e, t, i, n) {
-      let s = e.renderer;
-      this.scene.position.set(-n.cameraOffsetX, -n.cameraOffsetY, 0),
-        s.setRenderTarget(this.renderTarget),
-        !1 === s.autoClear && s.clear(),
-        s.render(this.scene, i),
-        s.setRenderTarget(this.depthRenderTarget),
-        !1 === s.autoClear && s.clear(),
-        (this.scene.overrideMaterial = this.depthMaterial),
-        s.render(this.scene, i),
-        (this.scene.overrideMaterial = null),
-        s.setRenderTarget(null);
-    }
-    set dataSource(e) {
-      this.pointMesh.dataSource = e;
-    }
-    get dataSource() {
-      return this.pointMesh.dataSource;
-    }
-    setData() {
-      this.pointMesh.dataSource &&
-        ((this.pointMesh.addCustomAttributes = (e, t) => {
-          let i = t.data,
-            n = [];
-          for (let s = 0; s < i.position.length; s++) {
-            const e = i.count[s] ? i.count[s] : 1;
-            n.push(e);
-          }
-          e.setAttribute("instancedWeight", new Wa(new Float32Array(n), 1));
-        }),
-        this.pointMesh.setData());
-    }
-    dispose() {
-      this.material.dispose(),
-        this.geometry.dispose(),
-        this.pointGeometry.dispose(),
-        this.pointMaterial.dispose(),
-        this.renderTarget.dispose(),
-        this.depthMaterial.dispose(),
-        this.depthRenderTarget.dispose();
-    }
-    set gradient(e) {
-      "[object Object]" === Object.prototype.toString.call(e) &&
-        (this.material.gradient = e);
-    }
-    set radius(e) {
-      !isNaN(e) &&
-        e > 0 &&
-        ((this.pointMaterial.radius = e), (this.depthMaterial.radius = e));
-    }
-    get radius() {
-      return this.pointMaterial.radius;
-    }
-    set minValue(e) {
-      isNaN(e) || (this.pointMaterial.minValue = e);
-    }
-    get minValue() {
-      return this.pointMaterial.minValue;
-    }
-    set maxValue(e) {
-      isNaN(e) || (this.pointMaterial.maxValue = e);
-    }
-    get maxValue() {
-      return this.pointMaterial.maxValue;
-    }
-    set opacity(e) {
-      isNaN(e) || (this.material.opacity = e);
-    }
-    get opacity() {
-      return this.material.opacity;
-    }
-    set keepSize(e) {
-      (this.pointMaterial.keepSize = e), (this.depthMaterial.keepSize = e);
-    }
-    get keepSize() {
-      return this.pointMaterial.keepSize;
-    }
-    set attenuateMValueFactor(e) {
-      this.pointMaterial.attenuateMValueFactor = e;
-    }
-  }
-  exports.Heatmap3D = class extends _A {
-    constructor(e) {
-      super(e),
-        __publicField(this, "_gradient"),
-        __publicField(this, "_radius"),
-        __publicField(this, "_maxValue"),
-        __publicField(this, "isHeatmap3D", !0),
-        __publicField(this, "frustumCulled", !1),
-        __publicField(this, "geometry"),
-        __publicField(this, "material"),
-        __publicField(this, "opacity"),
-        __publicField(this, "heightRatio"),
-        (this.parameters = e),
-        (this._gradient =
-          void 0 !== this.parameters.gradient
-            ? this.parameters.gradient
-            : {
-                0.4: "rgba(0,0,255,1)",
-                0.6: "rgba(0,255,0,1)",
-                0.8: "rgba(255,255,0,1)",
-                1: "rgba(255,0,0,1)",
-              }),
-        (this._radius =
-          void 0 !== this.parameters.radius ? this.parameters.radius : 100),
-        (this._maxValue =
-          void 0 !== this.parameters.maxValue ? this.parameters.maxValue : 1),
-        this.defineMaterialProxyProperties([
-          "resolution",
-          "opacity",
-          "heightRatio",
-        ]);
-    }
-    initObject() {
-      const { radius: e, maxValue: t, ...i } = this.parameters;
-      this.geometry = new Wn();
-      (this.material = new hD(i)).setCommonUniforms(
-        this.engine.rendering.uniforms
-      );
-    }
-    setData() {
-      let e = this.dataSource.data,
-        t = 1 / 0,
-        i = 1 / 0,
-        n = 1 / 0,
-        s = -1 / 0,
-        r = -1 / 0,
-        a = -1 / 0,
-        o = [];
-      for (let v = 0; v < e.position.length; v++) {
-        const l = e.position[v],
-          h = e.count ? e.count[v] : 1;
-        (t = Math.min(l[0], t)),
-          (i = Math.min(l[1], i)),
-          (n = Math.min(l[2], n)),
-          (s = Math.max(l[0], s)),
-          (r = Math.max(l[1], r)),
-          (a = Math.max(l[2], a)),
-          o.push([l[0], l[1], h]);
-      }
-      let l = [(t + s) / 2, (i + r) / 2, (n + a) / 2];
-      this.position.set(...l);
-      let h = Math.ceil(s - t) + 2 * this._radius,
-        c = Math.ceil(r - i) + 2 * this._radius;
-      let u = Math.min((h * c) / 4e4, 2048),
-        d = u / 2,
-        p = new dD(u, u);
-      o.forEach((e) => {
-        (e[0] = e[0] - t + this._radius), (e[1] = e[1] - i + this._radius);
-      });
-      let f = uD(p),
-        m = f._ctx;
-      m.save(),
-        m.scale(u / h, u / c),
-        f
-          .data(o)
-          .radius(this._radius)
-          .max(this._maxValue)
-          .gradient(this._gradient)
-          .draw(),
-        m.restore(),
-        this.geometry && this.geometry.dispose();
-      const g = (this.geometry = new Wn(h, c, d, d));
-      g.computeBoundingSphere(),
-        g.computeBoundingBox(),
-        this.texture && this.texture.dispose();
-      let _ = (this.texture = new Eo(p));
-      (this.material.uniforms.map.value = _), (this.needsUpdate = !1);
-    }
-    onDispose() {
-      this.texture && this.texture.dispose();
-    }
-    get gradient() {
-      return this._gradient;
-    }
-    set gradient(e) {
-      this._gradient = e;
-    }
-    get radius() {
-      return this._radius;
-    }
-    set radius(e) {
-      this._radius = e;
-    }
-    get maxValue() {
-      return this._maxValue;
-    }
-    set maxValue(e) {
-      this._maxValue = e;
-    }
-  }
+
+  exports.Heatmap = makeHeatmapClass(_A, Wi, Wa, wa, ut, aD, oD, sD, iD, rn, _R);
+  exports.Heatmap3D = makeHeatmap3DClass(_A, Wn, hD, Eo);
+
   exports.Icon = lP;
   exports.IconPoint = JR;
   exports.Identity3DTilesMaterialManager = class extends yT {

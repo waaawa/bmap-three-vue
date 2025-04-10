@@ -160,7 +160,7 @@ export async function useUAVManager({
         ind: -1,
         max,
         name,
-        data: [data],
+        data: [null, data],
         len: 0,
         points,
       };

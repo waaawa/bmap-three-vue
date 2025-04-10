@@ -9,13 +9,21 @@ import {
   Pillar,
   DataItem,
   EmptySky,
+  Heatmap,
+  Heatmap3D,
 } from "mapv-three";
-import { useUAVManager, useLineManager, useTubeManager } from "@/utils/bmap";
+import {
+  useUAVManager,
+  useLineManager,
+  useTubeManager,
+  randomPoints,
+} from "@/utils/bmap";
 
 import * as THREE from "bmap-three";
 
 import { randomHexColorStr } from "@/utils/color";
 import { randomRange } from "@/utils/math";
+import { headMapDemo, initHeadMap, initHeadMap3D } from "@/utils/bmap/headmap";
 
 export default {
   name: "MapScene",
@@ -155,11 +163,12 @@ export default {
       const map = new BMapGL.Map("container");
       map.centerAndZoom(new BMapGL.Point(center[0], center[1]), zoom);
       map.enableScrollWheelZoom();
+      // map.setMapStyleV2({ styleId: "c95c1f9ab40e5ba30b3b0be8fc3464d8" });
 
       this.$map = map;
     },
 
-    initMapEngine(config) {
+    async initMapEngine(config) {
       const { center, pitch } = config;
 
       const engine = new Engine(this.$map, {
@@ -216,70 +225,8 @@ export default {
         offset: [0, 0, 0],
         engine: this.$engine,
       });
-    },
 
-    modelMixerAnimation() {
-      var clock = new THREE.Clock();
-
-      this.$engine.rendering.addBeforeRenderListener(() => {
-        this.$uavManager?.update(clock.getDelta() * 30);
-
-        if (this.mixerArr) {
-          for (let i = 0; i < this.mixerArr.length; i++) {
-            this.mixerArr[i].update(clock.getDelta() * 30);
-          }
-        }
-      });
-    },
-
-    async initLine() {
-      const lineManager = await useLineManager({
-        engine: this.$engine,
-      });
-
-      lineManager.addAggregationLine({
-        name: "line",
-        flyConfig: {
-          vertexColors: false,
-          lineWidth: 8,
-        },
-        basicConfig: {
-          vertexColors: true,
-        },
-        basicData: this.lineData,
-        flyData: this.lineData,
-      });
-
-      this.$lineManager = lineManager;
-    },
-
-    async addTube() {
-      const tubeManager = await useTubeManager({
-        engine: this.$engine,
-        data: this.lineData,
-      });
-
-      this.$engine.event.bind("click", (e) => {
-        tubeManager.addTube({
-          position: [...e.point, randomRange(10, 40)],
-          color: randomHexColorStr(),
-        });
-      });
-    },
-
-    async initScene(config) {
-      this.initBMapGL(config);
-      this.initMapEngine(config);
-
-      this.initSky();
-
-      await this.initUAVManager();
-
-      window.$uavManager = this.$uavManager;
-
-      this.initLine();
-
-      window.$uavManager.addUAV({
+      this.$uavManager.addUAV({
         name: "aaa",
         position: [116.38999802501954, 39.90992061915485, 50],
         onClick: (e) => {
@@ -307,20 +254,111 @@ export default {
 
         this.$lineManager.setAggregationLine({
           name: "line",
-          flyData: [...data],
-          basicData: [...data],
+          flyData: data,
+          basicData: data,
         });
 
-        console.log(this.$lineManager.record);
+        console.log(item.data[item.ind + 1].value);
+
+        this.$heatmap3D.setData(item.data[item.ind + 1]);
       });
 
       this.$engine.event.bind("click", (e) => {
+        const p = [...e.point, randomRange(10, 40)];
+
         this.$uavManager.moveTo({
           name: "aaa",
           step: 2,
-          position: [...e.point, 10],
+          data: {
+            position: p,
+            value: randomRange(1, 30),
+          },
+          position: p,
         });
       });
+    },
+
+    modelMixerAnimation() {
+      var clock = new THREE.Clock();
+
+      this.$engine.rendering.addBeforeRenderListener(() => {
+        this.$uavManager?.update(clock.getDelta() * 30);
+
+        if (this.mixerArr) {
+          for (let i = 0; i < this.mixerArr.length; i++) {
+            this.mixerArr[i].update(clock.getDelta() * 30);
+          }
+        }
+      });
+    },
+
+    async initHeadMap() {
+      const $heatmap3D = await initHeadMap3D({
+        config: {
+          opacity: 1,
+          radius: 10, // 热力绘制半径
+          maxValue: 10, // 最大热力值
+          heightRatio: 30, // 高度系数
+          attenuateMValueFactor: 0.9, //径向渐变速度
+          gradient: {
+            0: "rgb(50, 250, 56)",
+            0.4: "rgb(250, 250, 56)",
+            1.0: "rgb(250, 50, 56)",
+          },
+        },
+        engine: this.$engine,
+      });
+
+      this.$heatmap3D = $heatmap3D;
+    },
+
+    async initLine() {
+      const lineManager = await useLineManager({
+        engine: this.$engine,
+      });
+
+      lineManager.addAggregationLine({
+        name: "line",
+        flyConfig: {
+          vertexColors: false,
+          lineWidth: 2.5,
+        },
+        basicConfig: {
+          lineWidth: 2,
+          vertexColors: true,
+        },
+        basicData: [...this.lineData],
+        flyData: [...this.lineData],
+      });
+
+      this.$lineManager = lineManager;
+    },
+
+    async addTube() {
+      const tubeManager = await useTubeManager({
+        engine: this.$engine,
+        data: this.lineData,
+      });
+
+      this.$engine.event.bind("click", (e) => {
+        tubeManager.addTube({
+          position: [...e.point, randomRange(10, 40)],
+          color: randomHexColorStr(),
+        });
+      });
+    },
+
+    async initScene(config) {
+      this.initBMapGL(config);
+      this.initMapEngine(config);
+
+      this.initSky();
+
+      await this.initHeadMap();
+
+      await this.initUAVManager();
+
+      this.initLine();
     },
   },
 };
