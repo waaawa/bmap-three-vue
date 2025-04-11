@@ -62416,35 +62416,6 @@ class oD extends kl {
     this.geometry.dispose();
   }
 }
-const lD = In.merge([
-  Xn.fog,
-  {
-    heightRatio: { value: 100 },
-    opacity: { value: 1 },
-    map: { value: null },
-    isEmissive: { value: !1 },
-  },
-]);
-class hD extends AA {
-  constructor(e) {
-    super(e),
-      (this.type = "HeatmapMaterial"),
-      (this.isHeatmapMaterial = !0),
-      (this.fog = !0),
-      (this.lights = !1),
-      (this.transparent = !0),
-      (this.depthWrite = !0),
-      (this.depthTest = !0),
-      (this.fragmentShader =
-        "#define GLSLIFY 1\n#include <common>\n\nuniform sampler2D map;\nuniform float opacity;\nuniform vec2 resolution;\n\nvarying vec2 vUv;\n#include <logdepthbuf_pars_fragment>\n\nvoid main() {\n\n    gl_FragColor = texture2D(map, vUv);\n    gl_FragColor.a *= opacity;\n\n    #include <logdepthbuf_fragment> \n\n}"),
-      (this.vertexShader =
-        "#define GLSLIFY 1\n#include <common>\n\nuniform float heightRatio;\nuniform sampler2D map;\n\nvarying vec2 vUv;\n\n#include <logdepthbuf_pars_vertex>\nvoid main() { \n\n    vUv = vec2(uv.x, 1. - uv.y);\n\t#include <begin_vertex>\n\n    transformed.z = texture2D(map, vUv).a * heightRatio;\n\n\t#include <project_vertex>\n    #include <logdepthbuf_vertex>\n}"),
-      Object.assign(this.uniforms, In.clone(lD)),
-      N_(this, ["heightRatio", "resolution", "opacity", "map", "isEmissive"]),
-      this.setValues(e);
-  }
-}
-
 
 class pD extends rn {
   constructor() {
@@ -90506,7 +90477,7 @@ loadStyle('.mapv-controls-pane{position:absolute;z-index:15;bottom:0;left:0;righ
   }
 
   exports.Heatmap = makeHeatmapClass(_A, Wi, Wa, wa, ut, aD, oD, sD, iD, rn, _R);
-  exports.Heatmap3D = makeHeatmap3DClass(_A, Wn, hD, Eo);
+  exports.Heatmap3D = makeHeatmap3DClass(_A, Wn, AA, In, Xn, N_, Eo);
 
   exports.Icon = lP;
   exports.IconPoint = JR;

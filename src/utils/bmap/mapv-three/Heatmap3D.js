@@ -1,7 +1,84 @@
 const { __publicField } = require("./utils");
-import { uD, createCanvas } from "./uD";
+import { HeatmapCanvas, createCanvas } from "./HeatmapCanvas";
 
-export function makeHeatmap3DClass(_A, Wn, hD, Eo) {
+export function makeHeatmap3DClass(_A, Wn, AA, In, Xn, N_, Eo) {
+  const lD = In.merge([
+    Xn.fog,
+    {
+      heightRatio: { value: 100 },
+      opacity: { value: 1 },
+      map: { value: null },
+      isEmissive: { value: !1 },
+    },
+  ]);
+
+  class HeatmapMaterial extends AA {
+    constructor(e) {
+      super(e), (this.type = "HeatmapMaterial");
+      this.isHeatmapMaterial = !0;
+      this.fog = !0;
+      this.lights = !1;
+      this.transparent = !0;
+      this.depthWrite = !0;
+      this.depthTest = !0;
+      this.fragmentShader = `
+        #define GLSLIFY 1
+        #include <common>
+        uniform sampler2D map;
+        uniform float opacity;
+        uniform vec2 resolution;
+        varying vec2 vUv;
+        #include <logdepthbuf_pars_fragment>
+        
+        void main() {
+          gl_FragColor = texture2D(map, vUv);
+          gl_FragColor.a *= opacity;
+          #include <logdepthbuf_fragment>
+        }
+      `;
+      this.vertexShader = `
+        #define GLSLIFY 1
+        #include <common>
+        
+        uniform float heightRatio;
+        uniform sampler2D map;
+        
+        varying vec2 vUv;
+        #include <logdepthbuf_pars_vertex>
+        void main() { 
+          vUv = vec2(uv.x, 1. - uv.y);
+          #include <begin_vertex>
+          transformed.z = texture2D(map, vUv).a * heightRatio;
+          /* #include <project_vertex> */
+          
+          vec4 mvPosition = vec4( transformed, 1.0 );
+          #ifdef USE_INSTANCING
+          mvPosition = instanceMatrix * mvPosition;
+          #endif
+          mvPosition = modelViewMatrix * mvPosition;
+          gl_Position = projectionMatrix * mvPosition;
+
+          /* #include <logdepthbuf_vertex> */
+
+          #ifdef USE_LOGDEPTHBUF
+            #ifdef USE_LOGDEPTHBUF_EXT
+              vFragDepth = 1.0 + gl_Position.w;
+              vIsPerspective = float( isPerspectiveMatrix( projectionMatrix ) );
+            #else
+              if ( isPerspectiveMatrix( projectionMatrix ) ) {
+                gl_Position.z = log2( max( EPSILON, gl_Position.w + 1.0 ) ) * logDepthBufFC - 1.0;
+                gl_Position.z *= gl_Position.w;
+              }
+            #endif
+          #endif
+        }
+      `;
+      Object.assign(this.uniforms, In.clone(lD));
+      N_(this, ["heightRatio", "resolution", "opacity", "map", "isEmissive"]);
+      this.setValues(e);
+    }
+  }
+
   return class extends _A {
     constructor(e) {
       super(e);
@@ -34,71 +111,95 @@ export function makeHeatmap3DClass(_A, Wn, hD, Eo) {
     initObject() {
       const { radius: e, maxValue: t, ...i } = this.parameters;
       this.geometry = new Wn(1, 1, 1, 1);
-      this.material = new hD(i);
+      this.material = new HeatmapMaterial(i);
       this.material.setCommonUniforms(this.engine.rendering.uniforms);
     }
     setData() {
       try {
         let e = this.dataSource.data,
-          t = 1 / 0,
-          i = 1 / 0,
-          n = 1 / 0,
-          s = -1 / 0,
-          r = -1 / 0,
-          a = -1 / 0,
-          o = [];
+          min_x = 1 / 0,
+          min_y = 1 / 0,
+          min_z = 1 / 0,
+          max_x = -1 / 0,
+          max_y = -1 / 0,
+          max_z = -1 / 0,
+          gap = this._radius * 4,
+          nodeData = [];
 
+        // 遍历所有位置点
         for (let v = 0; v < e.position.length; v++) {
-          const l = e.position[v];
-          const h = e.count ? e.count[v] : 1;
+          // 获取当前点的位置坐标
+          const poi = e.position[v];
+          // 获取当前点的权重值，如果没有设置则默认为1
+          const count = e.count ? e.count[v] : 1;
 
-          t = Math.min(l[0], t);
-          i = Math.min(l[1], i);
-          n = Math.min(l[2], n);
-          s = Math.max(l[0], s);
-          r = Math.max(l[1], r);
-          a = Math.max(l[2], a);
+          // 计算包围盒的最小坐标
+          min_x = Math.min(poi[0], min_x); // x最小值
+          min_y = Math.min(poi[1], min_y); // y最小值
+          min_z = Math.min(poi[2], min_z); // z最小值
+          // 计算包围盒的最大坐标
+          max_x = Math.max(poi[0], max_x); // x最大值
+          max_y = Math.max(poi[1], max_y); // y最大值
+          max_z = Math.max(poi[2], max_z); // z最大值
 
-          o.push([l[0], l[1], h]);
+          // 将位置和权重信息保存到数组，用于后续热力图渲染
+          // [x, y, weight]
+          nodeData.push([poi[0], poi[1], count]);
         }
 
-        let l = [(t + s) / 2, (i + r) / 2, (n + a) / 2];
-        this.position.set(...l);
+        // 计算包围盒的中心点坐标
+        let center = [
+          (min_x + max_x) / 2,
+          (min_y + max_y) / 2,
+          (min_z + max_z) / 2,
+        ];
 
-        let h = Math.ceil(s - t) + 2 * this._radius || 2000;
-        let c = Math.ceil(r - i) + 2 * this._radius || 2000;
+        // 设置热力图网格的中心位置
+        this.position.set(...center);
 
-        let u = Math.min((h * c) / 4e4, 2048) + this._radius * 4;
+        // 计算热力图的宽度和高度（包含边缘缓冲区）
+        let width = Math.ceil(max_x - min_x) + gap * 2; // 宽度
+        let height = Math.ceil(max_y - min_y) + gap * 2; // 高度
 
-        let d = u / 2 < 1 ? 1 : u / 2;
-        let p = new createCanvas(u, u);
+        // 计算热力图纹理的分辨率
+        // 保证最小分辨率256，最大不超过2048
+        // 根据面积和半径动态计算合适的分辨率
+        let size = Math.max(256, Math.min((width * height) / 400, 2048));
 
-        o.forEach((e) => {
-          (e[0] = e[0] - t + this._radius), (e[1] = e[1] - i + this._radius);
+        // 计算网格细分数，至少为1
+        let segments = size / 2;
+        // 创建用于渲染热力图的画布
+        let canvas = new createCanvas(width, height);
+
+        // 将所有点的坐标转换到相对于左上角的位置
+        nodeData.forEach((e) => {
+          e[0] = e[0] - min_x + gap; // x坐标转换
+          e[1] = e[1] - min_y + gap; // y坐标转换
         });
 
-        let f = new uD(p);
-        let m = f._ctx;
+        let heatmapCanvas = new HeatmapCanvas(canvas, { gap: gap });
+        let heatmapCanvasCtx = heatmapCanvas._ctx;
 
-        m.save();
-        m.scale(u / h, u / c);
+        heatmapCanvasCtx.save();
+        heatmapCanvasCtx.scale(size / width, size / height);
 
-        f.data(o)
+        heatmapCanvas
+          .data(nodeData)
           .radius(this._radius)
           .max(this._maxValue)
           .gradient(this._gradient)
           .draw();
 
-        m.restore();
+        heatmapCanvasCtx.restore();
 
         this.geometry && this.geometry.dispose();
 
-        const g = (this.geometry = new Wn(h, c, d, d));
+        const g = (this.geometry = new Wn(width, height, segments, segments));
         g.computeBoundingSphere();
         g.computeBoundingBox();
 
         this.texture && this.texture.dispose();
-        let _ = (this.texture = new Eo(p));
+        let _ = (this.texture = new Eo(canvas));
         this.material.uniforms.map.value = _;
         this.needsUpdate = !1;
       } catch (error) {

@@ -9,21 +9,14 @@ import {
   Pillar,
   DataItem,
   EmptySky,
-  Heatmap,
-  Heatmap3D,
 } from "mapv-three";
-import {
-  useUAVManager,
-  useLineManager,
-  useTubeManager,
-  randomPoints,
-} from "@/utils/bmap";
+import { useUAVManager, useLineManager } from "@/utils/bmap";
 
 import * as THREE from "bmap-three";
 
 import { randomHexColorStr } from "@/utils/color";
 import { randomRange } from "@/utils/math";
-import { headMapDemo, initHeadMap, initHeadMap3D } from "@/utils/bmap/headmap";
+import { initHeadMap3D } from "@/utils/bmap/headmap";
 
 export default {
   name: "MapScene",
@@ -157,66 +150,6 @@ export default {
     this.modelMixerAnimation();
   },
   methods: {
-    initBMapGL(config) {
-      const { center, zoom } = config;
-
-      const map = new BMapGL.Map("container");
-      map.centerAndZoom(new BMapGL.Point(center[0], center[1]), zoom);
-      map.enableScrollWheelZoom();
-      // map.setMapStyleV2({ styleId: "c95c1f9ab40e5ba30b3b0be8fc3464d8" });
-
-      this.$map = map;
-    },
-
-    async initMapEngine(config) {
-      const { center, pitch } = config;
-
-      const engine = new Engine(this.$map, {
-        rendering: {
-          enableAnimationLoop: true,
-        },
-      });
-      engine.map.setCenter(center);
-      engine.map.setPitch(pitch);
-
-      this.$engine = engine;
-    },
-
-    async addPillar() {
-      const { center } = this.config;
-
-      const pillar = this.$engine.add(
-        new Pillar({
-          height: 300,
-          radius: 50,
-          radialSegments: 32,
-        })
-      );
-
-      let data = await GeoJSONDataSource.fromGeoJSON([
-        {
-          properties: {},
-          geometry: {
-            type: "Point",
-            coordinates: center,
-          },
-        },
-      ]);
-
-      pillar.dataSource = data;
-
-      this.$engine.event.bind("click", (e) => {
-        data.add(new DataItem(e.point));
-      });
-    },
-
-    initSky() {
-      const sky = this.$engine.add(new EmptySky());
-      sky.time = 3600 * 14;
-
-      this.$sky = sky;
-    },
-
     async initUAVManager() {
       this.$uavManager = await useUAVManager({
         // onProgress: (v) => {
@@ -260,6 +193,8 @@ export default {
 
         console.log(item.data[item.ind + 1].value);
 
+        console.log(item.data);
+
         this.$heatmap3D.setData(item.data[item.ind + 1]);
       });
 
@@ -271,47 +206,64 @@ export default {
           step: 2,
           data: {
             position: p,
-            value: randomRange(1, 30),
+            value: randomRange(1, 15),
           },
           position: p,
         });
       });
     },
-
-    modelMixerAnimation() {
-      var clock = new THREE.Clock();
-
-      this.$engine.rendering.addBeforeRenderListener(() => {
-        this.$uavManager?.update(clock.getDelta() * 30);
-
-        if (this.mixerArr) {
-          for (let i = 0; i < this.mixerArr.length; i++) {
-            this.mixerArr[i].update(clock.getDelta() * 30);
-          }
-        }
-      });
-    },
-
     async initHeadMap() {
       const $heatmap3D = await initHeadMap3D({
         config: {
           opacity: 1,
-          radius: 10, // 热力绘制半径
+          radius: 5, // 热力绘制半径
           maxValue: 10, // 最大热力值
-          heightRatio: 30, // 高度系数
-          attenuateMValueFactor: 0.9, //径向渐变速度
+          heightRatio: 10, // 高度系数
+          attenuateMValueFactor: 1, //径向渐变速度
           gradient: {
             0: "rgb(50, 250, 56)",
-            0.4: "rgb(250, 250, 56)",
-            1.0: "rgb(250, 50, 56)",
+            0.5: "rgb(250, 250, 56)",
+            0.7: "rgb(250, 50, 56)",
+            1: "rgb(250, 50, 56)",
           },
         },
         engine: this.$engine,
       });
 
       this.$heatmap3D = $heatmap3D;
-    },
 
+      this.$heatmap3D.setData([
+        null,
+        {
+          position: [
+            116.38915021906352, 39.910191791137045, 30.557709687541504,
+          ],
+          value: 0,
+        },
+        {
+          position: [
+            116.38948838500497, 39.910263333970114, 11.902500043633934,
+          ],
+          value: 1,
+        },
+        {
+          position: [116.39011059317238, 39.91022318362194, 27.21243061605761],
+          value: 3,
+        },
+        {
+          position: [116.3906824682041, 39.91028792442783, 12.513488977425968],
+          value: 5,
+        },
+        {
+          position: [116.39112274974303, 39.91027968513256, 38.96035730053637],
+          value: 7,
+        },
+        {
+          position: [116.39155080228971, 39.91034681912313, 22.90873109691301],
+          value: 10,
+        },
+      ]);
+    },
     async initLine() {
       const lineManager = await useLineManager({
         engine: this.$engine,
@@ -333,21 +285,39 @@ export default {
 
       this.$lineManager = lineManager;
     },
+    async addPillar() {
+      const { center } = this.config;
 
-    async addTube() {
-      const tubeManager = await useTubeManager({
-        engine: this.$engine,
-        data: this.lineData,
-      });
+      const pillar = this.$engine.add(
+        new Pillar({
+          height: 300,
+          radius: 50,
+          radialSegments: 32,
+        })
+      );
+
+      let data = await GeoJSONDataSource.fromGeoJSON([
+        {
+          properties: {},
+          geometry: {
+            type: "Point",
+            coordinates: center,
+          },
+        },
+      ]);
+
+      pillar.dataSource = data;
 
       this.$engine.event.bind("click", (e) => {
-        tubeManager.addTube({
-          position: [...e.point, randomRange(10, 40)],
-          color: randomHexColorStr(),
-        });
+        data.add(new DataItem(e.point));
       });
     },
+    initSky() {
+      const sky = this.$engine.add(new EmptySky());
+      sky.time = 3600 * 14;
 
+      this.$sky = sky;
+    },
     async initScene(config) {
       this.initBMapGL(config);
       this.initMapEngine(config);
@@ -359,6 +329,42 @@ export default {
       await this.initUAVManager();
 
       this.initLine();
+    },
+    initBMapGL(config) {
+      const { center, zoom } = config;
+
+      const map = new BMapGL.Map("container");
+      map.centerAndZoom(new BMapGL.Point(center[0], center[1]), zoom);
+      map.enableScrollWheelZoom();
+      // map.setMapStyleV2({ styleId: "c95c1f9ab40e5ba30b3b0be8fc3464d8" });
+
+      this.$map = map;
+    },
+    async initMapEngine(config) {
+      const { center, pitch } = config;
+
+      const engine = new Engine(this.$map, {
+        rendering: {
+          enableAnimationLoop: true,
+        },
+      });
+      engine.map.setCenter(center);
+      engine.map.setPitch(pitch);
+
+      this.$engine = engine;
+    },
+    modelMixerAnimation() {
+      var clock = new THREE.Clock();
+
+      this.$engine.rendering.addBeforeRenderListener(() => {
+        this.$uavManager?.update(clock.getDelta() * 30);
+
+        if (this.mixerArr) {
+          for (let i = 0; i < this.mixerArr.length; i++) {
+            this.mixerArr[i].update(clock.getDelta() * 30);
+          }
+        }
+      });
     },
   },
 };

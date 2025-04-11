@@ -47,7 +47,7 @@ export async function initHeadMap3D({ engine, config }) {
       if (isEmpty(item)) return;
       dataSource.add(
         new DataItem([item.position[0], item.position[1], 0], {
-          count: item.value,
+          count: Math.min(item.value, cfg.maxValue),
         })
       );
     });

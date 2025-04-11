@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+
+    <script>
+      const w = 500;
+      const h = 500;
+
+      const center = [250, 250];
+      const max = 10;
+
+      const data = [];
+
+      for (let i = 0; i < 1000; i++) {
+        data.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          value: Math.random() * max,
+          // value: 3,
+        });
+      }
+
+      const canvas = document.getElementById("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+      // 创建一个线性渐变
+      // 渐变起点在 x=20、y=0
+      // 渐变终点在 x=220、y=0
+      const { gradient, gradData } = createGradient({
+        0: "rgb(50, 250, 56)",
+        0.5: "rgb(250, 250, 56)",
+        1: "rgb(250, 50, 56)",
+      });
+
+      // 设置填充样式并绘制矩形
+      // ctx.fillStyle = gradient;
+      // ctx.fillRect(0,0,100,256);
+
+      const r = 20;
+      const blur_r = 20;
+      let R = (r + blur_r) * 2;
+
+      const _radius = radius(r, blur_r);
+      const _radCtx = _radius.getContext("2d", { willReadFrequently: true });
+      const radImgData = _radCtx.getImageData(0, 0, R, R);
+
+      // 获取画布指定大小的图像数据
+      data.forEach((item) => {
+        let { x, y, value } = item;
+
+        x = x - R / 2;
+        y = y - R / 2;
+
+        const imgData = ctx.getImageData(x, y, R, R);
+        mixImgData(imgData, radImgData, value / max);
+        ctx.putImageData(imgData, x, y);
+        // ctx.drawImage(_radius, x, y);
+      });
+
+      // const imgDataA = ctx.getImageData(0, 0, R, R);
+
+      // mixImgData2(imgDataA.data, data, 1);
+      // ctx.putImageData(imgDataA, 0, 0);
+
+      const imgData = ctx.getImageData(0, 0, w, h);
+
+      colorize(imgData.data, gradData);
+      ctx.putImageData(imgData, 0, 0);
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = gradient;
+      ctx.fillRect(470, 0, 30, 256);
+
+      // 检测渐变值高低进行颜色混合
+      function mixImgData(a, b, opacity) {
+        const aData = a.data;
+        const bData = b.data;
+
+        const len = aData.length;
+        for (let i = 0; i < len; i += 4) {
+          if (!aData[i + 3] && !bData[i + 3]) continue;
+
+          // 计算混合权重
+          const alpha = bData[i + 3] / 255;
+          const mixAlpha = alpha * opacity;
+
+          if (aData[i + 3]) {
+            if (!bData[i + 3]) continue;
+
+            // 使用平方根混合，让过渡更加柔和
+            const currentAlpha = aData[i + 3] / 255;
+            const newAlpha = Math.sqrt(
+              currentAlpha * currentAlpha + mixAlpha * mixAlpha
+            );
+
+            const maxAlpha = Math.max(currentAlpha, mixAlpha);
+
+            aData[i + 3] = Math.min(newAlpha * 255, 255);
+
+            // if (maxAlpha > 0.9) {
+            //   aData[i + 3] = maxAlpha * 255;
+            //   continue;
+            // }
+
+            // aData[i + 3] = Math.min(newAlpha * 255, 255);
+
+            // aData[i + 3] = Math.max(currentAlpha * 255, mixAlpha * 255);
+          } else {
+            aData[i + 3] = mixAlpha * 255;
+          }
+        }
+      }
+
+      function mixImgData2(a, b, opacity) {
+        const len = a.length;
+        for (let i = 0; i < len; i += 4) {
+          a[i + 3] = b[i + 3];
+        }
+      }
+
+      function createGradient(e) {
+        let t = document.createElement("canvas");
+        let i = t.getContext("2d");
+        let n = i.createLinearGradient(0, 0, 0, 256);
+
+        t.width = 1;
+        t.height = 256;
+
+        for (var s in e) {
+          n.addColorStop(+s, e[s]);
+        }
+
+        i.fillStyle = n;
+        i.fillRect(0, 0, 1, 256);
+
+        return { gradient: n, gradData: i.getImageData(0, 0, 1, 256).data };
+      }
+
+      function radius(r, blur_r) {
+        // 设置模糊半径，默认值为15
+        blur_r = void 0 === blur_r ? 15 : blur_r;
+
+        // 创建一个新的canvas元素并保存到this._circle
+        var i = document.createElement("canvas");
+        // 获取canvas的2d上下文
+        const ctx = i.getContext("2d");
+        // 计算总半径（原始半径 + 模糊半径）并保存到this._r
+        const a_r = r + blur_r;
+
+        // 设置canvas的宽高为总半径的2倍
+        i.width = i.height = 2 * a_r;
+        // 设置阴影偏移量为总半径的2倍
+        ctx.shadowOffsetX = ctx.shadowOffsetY = 2 * a_r;
+        // 设置阴影模糊度
+        ctx.shadowBlur = blur_r;
+        // 设置阴影颜色为黑色
+        ctx.shadowColor = "black";
+        // 开始绘制路径
+        ctx.beginPath();
+        // 绘制圆弧，圆心位于(-s, -s)，半径为e，从0到2π
+        ctx.arc(-a_r, -a_r, r, 0, 2 * Math.PI, !0);
+        // 关闭路径
+        ctx.closePath();
+        // 填充路径
+        ctx.fill();
+
+        return i;
+      }
+
+      function colorize(e, t) {
+        for (var i, n = 0, s = e.length; n < s; n += 4) {
+          i = 4 * e[n + 3];
+
+          if (i) {
+            // console.log(
+            //   `%c颜色-rgba(${t[i]}, ${t[i + 1]}, ${t[i + 2]}, ${e[n + 3]})`,
+            //   `color: rgba(${t[i]}, ${t[i + 1]}, ${t[i + 2]}, ${e[n + 3]})`
+            // );
+
+            e[n] = t[i];
+            e[n + 1] = t[i + 1];
+            e[n + 2] = t[i + 2];
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
