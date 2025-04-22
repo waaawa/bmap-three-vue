@@ -1,7 +1,15 @@
-import { __publicField } from "./utils/index.js";
+import { publicField } from "./utils/index.js";
 import { HeatmapCanvas, createCanvas } from "./HeatmapCanvas.js";
 
-export function makeHeatmap3DClass(_A, PlaneGeometry, AA, In, Xn, N_, Texture) {
+export function makeHeatmap3DClass(
+  Mesh,
+  PlaneGeometry,
+  CommonMaterial,
+  In,
+  Xn,
+  N_,
+  Texture
+) {
   const lD = In.merge([
     Xn.fog,
     {
@@ -12,7 +20,7 @@ export function makeHeatmap3DClass(_A, PlaneGeometry, AA, In, Xn, N_, Texture) {
     },
   ]);
 
-  class HeatmapMaterial extends AA {
+  class HeatmapMaterial extends CommonMaterial {
     constructor(e) {
       super(e), (this.type = "HeatmapMaterial");
       this.isHeatmapMaterial = !0;
@@ -79,18 +87,18 @@ export function makeHeatmap3DClass(_A, PlaneGeometry, AA, In, Xn, N_, Texture) {
     }
   }
 
-  return class extends _A {
+  return class extends Mesh {
     constructor(e) {
       super(e);
-      __publicField(this, "_gradient");
-      __publicField(this, "_radius");
-      __publicField(this, "_maxValue");
-      __publicField(this, "isHeatmap3D", !0);
-      __publicField(this, "frustumCulled", !1);
-      __publicField(this, "geometry");
-      __publicField(this, "material");
-      __publicField(this, "opacity");
-      __publicField(this, "heightRatio");
+      publicField(this, "_gradient");
+      publicField(this, "_radius");
+      publicField(this, "_maxValue");
+      publicField(this, "isHeatmap3D", !0);
+      publicField(this, "frustumCulled", !1);
+      publicField(this, "geometry");
+      publicField(this, "material");
+      publicField(this, "opacity");
+      publicField(this, "heightRatio");
 
       this.parameters = e;
       this._gradient = this.parameters.gradient || {
@@ -124,6 +132,8 @@ export function makeHeatmap3DClass(_A, PlaneGeometry, AA, In, Xn, N_, Texture) {
         max_z = -1 / 0,
         gap = this._radius * 4,
         nodeData = [];
+
+      if (!e.position.length) return;
 
       // 遍历所有位置点
       for (let v = 0; v < e.position.length; v++) {

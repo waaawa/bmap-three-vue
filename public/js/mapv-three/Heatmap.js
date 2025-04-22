@@ -1,20 +1,20 @@
-import { __publicField } from "./utils/index.js";
+import { publicField } from "./utils/index.js";
 
 export function makeHeatmapClass(_A, Wi, Wa, wa, ut, aD, oD, sD, iD, rn, _R) {
   return class extends _A {
     constructor(e) {
       super(e);
-      __publicField(this, "isHeatmap", !0);
-      __publicField(this, "frustumCulled", !1);
-      __publicField(this, "geometry");
-      __publicField(this, "material");
-      __publicField(this, "scene");
-      __publicField(this, "pointMesh");
-      __publicField(this, "pointMaterial");
-      __publicField(this, "pointGeometry");
-      __publicField(this, "renderTarget");
-      __publicField(this, "depthMaterial");
-      __publicField(this, "depthRenderTarget");
+      publicField(this, "isHeatmap", !0);
+      publicField(this, "frustumCulled", !1);
+      publicField(this, "geometry");
+      publicField(this, "material");
+      publicField(this, "scene");
+      publicField(this, "pointMesh");
+      publicField(this, "pointMaterial");
+      publicField(this, "pointGeometry");
+      publicField(this, "renderTarget");
+      publicField(this, "depthMaterial");
+      publicField(this, "depthRenderTarget");
 
       this.parameters = e;
       this.defineMaterialProxyProperties(["resolution"]);
