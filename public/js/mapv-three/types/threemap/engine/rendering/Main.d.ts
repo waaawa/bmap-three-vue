@@ -1,0 +1,30 @@
+export class RenderingMain {
+    constructor(rendering: any);
+    _rendering: any;
+    _useMrt: boolean;
+    _mainMrt: any;
+    _renderPass: any;
+    _needsPrepare: boolean;
+    _antialias: boolean;
+    _msaaSamples: number;
+    set useMrt(arg: boolean);
+    get useMrt(): boolean;
+    _init(): void;
+    _tDepth: any;
+    _tDiffuse: any;
+    _tEmissive: any;
+    _tNormal: any;
+    _tSpecular: any;
+    render(): void;
+    cleanup: () => void;
+    dispose(): void;
+    getTextures(): any[];
+    setSize(width: any, height: any): void;
+    get tDiffuse(): any;
+    get tNormal(): any;
+    get tDepth(): any;
+    get tSpecular(): any;
+    get tEmissive(): any;
+    set antialias(arg: boolean);
+    get antialias(): boolean;
+}

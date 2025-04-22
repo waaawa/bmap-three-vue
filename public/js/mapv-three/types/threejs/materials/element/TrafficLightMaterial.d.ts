@@ -1,0 +1,12 @@
+export class TrafficLightMaterial extends CommonShaderMaterial {
+    constructor(parameters?: {});
+    type: string;
+    vertexShader: any;
+    fragmentShader: any;
+    isTrafficLightMaterial: boolean;
+    transparent: boolean;
+    emissiveEnabled: boolean;
+    emissiveIntensity: number;
+    dispose(): void;
+}
+import { CommonShaderMaterial } from "../CommonShaderMaterial";
