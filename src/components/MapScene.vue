@@ -17,6 +17,7 @@ import * as THREE from "bmap-three";
 import { randomHexColorStr } from "@/utils/color";
 import { randomRange } from "@/utils/math";
 import { initHeadMap3D } from "@/utils/bmap/headmap";
+import { usePoints, useSimplePointManager } from "@/utils/bmap/points-manager";
 
 export default {
   name: "MapScene",
@@ -150,6 +151,14 @@ export default {
     this.modelMixerAnimation();
   },
   methods: {
+    async initPointsManager() {
+      const simplePointManager = await useSimplePointManager({
+        engine: this.$engine,
+        size: 2,
+      });
+
+      this.$simplePointManager = simplePointManager;
+    },
     async initUAVManager() {
       this.$uavManager = await useUAVManager({
         // onProgress: (v) => {
@@ -185,15 +194,19 @@ export default {
           });
         }
 
-        this.$lineManager.setAggregationLine({
-          name: "line",
-          flyData: data,
-          basicData: data,
-        });
+        // this.$lineManager.setAggregationLine({
+        //   name: "line",
+        //   flyData: data,
+        //   basicData: data,
+        // });
 
-        console.log(item.data[item.ind + 1].value);
+        // this.$pointsManager.addPoints(data);
 
-        console.log(item.data);
+        this.$simplePointManager.addPoints(data);
+
+        // console.log(item.data[item.ind + 1].value);
+
+        // console.log(item.data);
 
         this.$heatmap3D.setData(item.data[item.ind + 1]);
       });
@@ -297,6 +310,8 @@ export default {
       await this.initUAVManager();
 
       this.initLine();
+
+      this.initPointsManager();
     },
     initBMapGL(config) {
       const { center, zoom } = config;
@@ -334,6 +349,12 @@ export default {
         }
       });
     },
+  },
+  beforeDestroy() {
+    this.$uavManager.dispose();
+    this.$heatmap3D.dispose();
+    this.$lineManager.dispose();
+    this.$pointsManager.dispose();
   },
 };
 </script>

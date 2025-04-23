@@ -17,6 +17,7 @@ import { Pe } from "./utils/other.js";
 import { Source } from "./Source.js";
 import { Material } from "./Material.js";
 import { ShaderMaterial } from "./ShaderMaterial.js";
+import { makeSimplePoint } from './SimplePoint.js'
 
 import {
   r,
@@ -29413,20 +29414,21 @@ function C_(e, t) {
   return e;
 }
 const M_ = x_;
-function w_(e) {
+
+function colorToVec4(e) {
   if (!e) return new Vector4();
   if (e.isColor) return [e.r, e.g, e.b, 1];
-  const t = I_(e);
+  const t = colorToArr4(e);
   return new Vector4(t[0], t[1], t[2], t[3]);
 }
-function T_(e) {
+function colorToVec3(e) {
   if (!e) return new Vector3();
-  const t = I_(e);
+  const t = colorToArr4(e);
   return new Vector3(t[0], t[1], t[2]);
 }
 
 // TODO
-function I_(e) {
+function colorToArr4(e) {
   if (!e) return [1, 1, 1, 1];
   const t = M_(e),
     i = t.unitArray();
@@ -29434,7 +29436,7 @@ function I_(e) {
   return [i[0], i[1], i[2], i[3] || t.valpha];
 }
 
-function R_(e) {
+function colorToArr3(e) {
   if (!e) return [1, 1, 1];
   const t = M_(e).unitArray();
   return [t[0], t[1], t[2]];
@@ -29443,10 +29445,10 @@ const P_ = Object.freeze(
     Object.defineProperty(
       {
         __proto__: null,
-        colorToVec4: w_,
-        colorToVec3: T_,
-        colorToArr4: I_,
-        colorToArr3: R_,
+        colorToVec4: colorToVec4,
+        colorToVec3: colorToVec3,
+        colorToArr4: colorToArr4,
+        colorToArr3: colorToArr3,
       },
       Symbol.toStringTag,
       { value: "Module" }
@@ -29477,7 +29479,7 @@ const P_ = Object.freeze(
           return this.uniforms[i].value;
         },
         set: function (e) {
-          this.uniforms[i].value = w_(e);
+          this.uniforms[i].value = colorToVec4(e);
         },
       });
   },
@@ -34163,7 +34165,7 @@ const yA = In.merge([
     keepSize: { value: !0 },
   },
 ]);
-class xA extends CommonShaderMaterial {
+class DefaultTextMaterial extends CommonShaderMaterial {
   constructor(e) {
     super(),
       (this.type = "DefaultTextMaterial"),
@@ -34388,7 +34390,7 @@ class EA extends Mesh {
       ...o
     } = this.parameters;
     (this.geometry = new rn(this.parameters)),
-      (this.material = new xA(o)),
+      (this.material = new DefaultTextMaterial(o)),
       this.material.setCommonUniforms(this.engine.rendering.uniforms),
       (this.texture = new CanvasTexture(this.canvas)),
       (this.texture.minFilter = L),
@@ -56681,7 +56683,8 @@ let lR = new kt(),
   fR = [],
   mR = new Vector3(),
   gR = new Vector4();
-class _R extends GeoObject {
+
+class InstancedMesh extends GeoObject {
   constructor(e, t) {
     super(),
       publicField(this, "type", "InstancedMesh"),
@@ -56774,7 +56777,7 @@ class _R extends GeoObject {
         i.push(Math.random()),
         this._enableInstanceColor)
       ) {
-        let t = R_(e[u].color);
+        let t = colorToArr3(e[u].color);
         n.push(t[0], t[1], t[2]);
       }
     }
@@ -56918,7 +56921,7 @@ class _R extends GeoObject {
             (fR.length = 0));
   }
 }
-class vR extends GeoObject {
+class Points extends GeoObject {
   constructor() {
     super(...arguments),
       publicField(this, "isPoints", !0),
@@ -56947,161 +56950,24 @@ class vR extends GeoObject {
     return i;
   }
 }
-class AR extends rn {
-  constructor(e) {
-    super(e), (this.parameters = e);
-  }
-  setData(e) {
-    const { vertexSizes: t, vertexColors: i } = this.parameters,
-      {
-        aPositions: n,
-        aObjectIndices: s,
-        aMapIndexs: r,
-        aColors: a,
-        aSizes: o,
-      } = e;
-    this.setAttribute("position", new Ki(n, 3)),
-      this.setAttribute("objectIndex", new Ki(s, 1)),
-      this.setAttribute("aMapIndex", new Ki(r, 1)),
-      i && this.setAttribute("aColor", new Ki(a, 4)),
-      t && this.setAttribute("aSize", new Ki(o, 1));
-  }
-}
-const yR = new yl(),
-  xR = In.merge([
-    Xn.fog,
-    L_,
-    D_,
-    {
-      isEmissive: { value: !1 },
-      color: { value: [0, 1, 1, 1] },
-      size: { value: 30 },
-      vertexColors: { value: !1 },
-      vertexSizes: { value: !1 },
-      uShapeType: { value: 2 },
-      opacity: { value: 1 },
-      map: { value: null },
-      useMap: { value: !1 },
-      uOffset: { value: [0, 0] },
-    },
-  ]);
-class bR extends CommonShaderMaterial {
-  constructor(e) {
-    super(),
-      (this.type = "SimplePointMaterial"),
-      (this.vertexShader =
-        "#define GLSLIFY 1\n#include <common>\n\n#ifdef MVT_USE_VERTEX_SIZE\n    attribute float aSize;\n    varying float vSize;\n#endif\n\n#ifdef MVT_USE_VERTEX_OFFSET\n    attribute vec2 aOffset;\n#else\n    uniform vec2 uOffset;\n#endif\n\n#ifdef MVT_USE_VERTEX_COLOR\n    attribute vec4 aColor;\n    varying vec4 vColor;\n#endif\n\nuniform float size;\nuniform float pixelRatio;\nuniform vec2 resolution;\n\n#include <mvt_selective_pars_vertex>\n#include <logdepthbuf_pars_vertex>\n#include <mvt_extra_vertex_utils>\n\nvoid main() { \n    #include <mvt_selective_vertex>\n\n    vec4 worldPosition = modelMatrix * vec4(position, 1.0);\n    float pixelSize = getPixelSize(worldPosition.xyz);\n\n    #ifdef MVT_USE_VERTEX_OFFSET\n        vec2 offset = aOffset * 2. * pixelRatio * pixelSize;\n    #else\n        vec2 offset = uOffset * 2. * pixelRatio * pixelSize;\n    #endif\n\n    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n    gl_Position.xy = gl_Position.xy - offset;\n\n    #ifdef MVT_USE_VERTEX_SIZE\n        vSize = aSize * pixelRatio;\n        gl_PointSize = vSize;\n    #else\n        gl_PointSize = size * pixelRatio;\n    #endif\n\n    #ifdef MVT_USE_VERTEX_COLOR\n        vColor = aColor;\n    #endif\n\n    #include <logdepthbuf_vertex>\n}"),
-      (this.fragmentShader =
-        "#define GLSLIFY 1\n#include <common>\n\n#ifdef MVT_USE_VERTEX_COLOR\n    varying vec4 vColor;\n#endif\nuniform vec4 color;\nuniform float uShapeType;\nuniform float opacity;\n\n#ifdef MVT_USE_VERTEX_SIZE\n    varying float vSize;\n#else\n    uniform float size;\n#endif\nuniform bool useMap;\nuniform sampler2D map;\n\n#include <mvt_selective_pars_fragment>\n#include <logdepthbuf_pars_fragment>\n\nvoid main() {\n\n    #ifdef MVT_USE_VERTEX_COLOR\n        gl_FragColor = vColor;\n    #else\n        gl_FragColor = color;\n    #endif\n\n    if (uShapeType == 2.) {\n        float d = distance(gl_PointCoord, vec2(0.5, 0.5));\n        #ifdef MVT_USE_VERTEX_SIZE\n            float alpha = smoothstep(0.5 + 0.5 / vSize, 0.5 - 1.0 / vSize, d);\n        #else\n            float alpha = smoothstep(0.5 + 0.5 / size, 0.5 - 1.0 / size, d);\n        #endif\n        \n        if (alpha <= 0.) {\n            discard;\n        } else {\n            gl_FragColor.a *= alpha;\n        }\n    }\n \n    if (useMap) {\n        vec4 tColor = texture2D(map, vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y));\n     //    gl_FragColor.rgb = tColor.rgb * tColor.a + gl_FragColor.rgb * (1.0 - tColor.a);\n     //    gl_FragColor.a += tColor.a;\n        \n        gl_FragColor = mix(gl_FragColor, tColor, tColor.a);\n        // gl_FragColor.rgb = mix(gl_FragColor.rgb, tColor.rgb, tColor.a);\n        // gl_FragColor.a += tColor.a;\n        // gl_FragColor = tColor;\n    }\n    gl_FragColor.a *= opacity;\n    if (gl_FragColor.a <= 0.) {\n        discard;\n    }\n    #include <mvt_selective_fragment> \n    #include <logdepthbuf_fragment> \n    #include <tonemapping_fragment>\n\t#include <colorspace_fragment>\n    \n}"),
-      (this.isSimplePointMaterial = !0),
-      (this.transparent = !0),
-      Object.assign(this.uniforms, In.clone(xR)),
-      U_(this),
-      N_(this, ["size", "uShapeType", "opacity", "isEmissive"]),
-      k_(this, [["offset", "uOffset"]]),
-      B_(this, ["color"]),
-      O_(this, [
-        ["vertexColors", "MVT_USE_VERTEX_COLOR"],
-        ["vertexSizes", "MVT_USE_VERTEX_SIZE"],
-      ]),
-      G_(this),
-      Object.defineProperties(this, {
-        mapSrc: {
-          get: function () {
-            return this.uniforms.map.value;
-          },
-          set: function (e) {
-            const t = this.mapSrc,
-              i = "url_map";
-            if (this.userData[i] === e) return;
-            if ((t && t.dispose(), !e))
-              return (
-                (this.uniforms.map.value = null),
-                (this.uniforms.useMap.value = !1),
-                void delete this.userData[i]
-              );
-            const n = yR.load(e);
-            (n.wrapS = n.wrapT = T),
-              (this.uniforms.map.value = n),
-              (this.userData[i] = e),
-              (this.uniforms.useMap.value = !0);
-          },
-        },
-      }),
-      (this.emissiveEnabled = !0),
-      (this.emissive = [0, 0, 0]),
-      this.setValues(e);
-  }
-  dispose() {
-    this.uniforms.map.value && this.uniforms.map.value.dispose(),
-      super.dispose();
-  }
-}
-class ER extends vR {
-  constructor(e) {
-    super(e),
-      publicField(this, "geometry"),
-      publicField(this, "material"),
-      publicField(this, "color"),
-      publicField(this, "vertexColors"),
-      publicField(this, "size"),
-      publicField(this, "vertexSizes"),
-      publicField(this, "opacity"),
-      publicField(this, "emissive"),
-      (this.parameters = e),
-      this.defineMaterialProxyProperties([
-        "size",
-        "uShapeType",
-        "opacity",
-        "emissive",
-        "vertexColors",
-        "vertexSizes",
-        "color",
-        "mapSrc",
-      ]);
-  }
-  collisionTest(e) {
-    return this.parameters.vertexSizes && e.size
-      ? { width: e.size, height: e.size }
-      : { width: this.size, height: this.size };
-  }
-  initObject() {
-    (this.geometry = new AR(this.parameters)),
-      (this.material = new bR(this.parameters)),
-      this.material.setCommonUniforms(this.engine.rendering.uniforms);
-  }
-  setData() {
-    const e = this.dataSource.data,
-      { vertexSizes: t, vertexColors: i } = this.parameters;
-    let n = [];
-    n =
-      this._enableCollision && this._collisionData
-        ? this._collisionData
-        : this.dataSource.userData;
-    const s = [],
-      r = [],
-      a = [],
-      o = [];
-    for (let l = 0; l < n.length; l++) {
-      const h = n[l].position,
-        c = n[l].index;
-      if ((s.push(...h), r.push(c), i && e.color)) {
-        let e = w_(n[l].color);
-        a.push(...e.toArray());
-      }
-      t && e.size && o.push(n[l].size);
-    }
-    this.geometry.setData({
-      aPositions: s,
-      aObjectIndices: r,
-      aColors: a,
-      aSizes: o,
-    }),
-      this.geometry.computeBoundingSphere(),
-      this.makeGeometryOffsetPosition(this.geometry, s),
-      (this.needsUpdate = !1);
-  }
-}
+
+const SimplePoint = makeSimplePoint(CommonShaderMaterial,
+  U_,
+  N_,
+  k_,
+  B_,
+  O_,
+  G_,
+  yl,
+  Xn,
+  L_,
+  D_,
+  rn,
+  Ki,
+  colorToVec4,
+  Points
+);
+
 let SR = new Box3(),
   CR = new Vector3();
 class MR extends kl {
@@ -57174,7 +57040,7 @@ const TR = (e) => {
           return this.uniforms.color.value;
         },
         set: function (e) {
-          this.uniforms.color.value = w_(e);
+          this.uniforms.color.value = colorToVec4(e);
         },
       },
       height: {
@@ -57669,7 +57535,7 @@ const WR = new yl(),
       useMap: { value: !1 },
     },
   ]);
-class XR extends CommonShaderMaterial {
+class IconPointMaterial extends CommonShaderMaterial {
   constructor(e) {
     super(),
       (this.type = "IconPointMaterial"),
@@ -57802,7 +57668,7 @@ const YR = (e, t, i, n, s, r = 1) => (
         (i.src = e);
     }
   };
-class JR extends vR {
+class JR extends Points {
   constructor(e) {
     super(e),
       publicField(this, "canvas"),
@@ -57906,7 +57772,7 @@ class JR extends vR {
   }
   initObject() {
     (this.geometry = new jR(this.parameters)),
-      (this.material = new XR(this.parameters)),
+      (this.material = new IconPointMaterial(this.parameters)),
       this.material.setCommonUniforms(this.engine.rendering.uniforms);
   }
   collisionTest(e) {
@@ -57963,7 +57829,7 @@ class JR extends vR {
         m.push(i, s, Math.abs(i - n), Math.abs(s - a));
       }
       if (i) {
-        let e = w_(u);
+        let e = colorToVec4(u);
         d.push(...e.toArray());
       }
       n && p.push(_), s && f.push(v);
@@ -58033,7 +57899,7 @@ class tP extends CommonShaderMaterial {
         ["scale", "uScale"],
         ["flat", "uFlat"],
       ]),
-      k_(this, [["color", "uColor", w_]]),
+      k_(this, [["color", "uColor", colorToVec4]]),
       O_(this, [["vertexColors", "MVT_USE_VERTEX_COLOR"]]),
       Object.defineProperties(this, {
         mapSrc: {
@@ -58262,7 +58128,7 @@ class lP extends Mesh {
         if (!d) continue;
         const p = s[i].color;
         let f;
-        this.parameters.vertexColors && (f = p ? w_(p) : [1, 1, 1, 1]);
+        this.parameters.vertexColors && (f = p ? colorToVec4(p) : [1, 1, 1, 1]);
         for (let t = 0; t < 4; t++)
           r.push(...e), a.push(t), o.push(n), f && c.push(...f);
         const m = d.x / this.canvas.width,
@@ -58279,7 +58145,7 @@ class lP extends Mesh {
           t = s[f].index,
           i = s[f].color;
         let n;
-        this.parameters.vertexColors && (n = i ? w_(i) : [1, 1, 1, 1]);
+        this.parameters.vertexColors && (n = i ? colorToVec4(i) : [1, 1, 1, 1]);
         for (let s = 0; s < 4; s++)
           r.push(...e), a.push(s), o.push(t), n && c.push(...n);
         l.push(0, 1, 0, 0, 1, 0, 1, 1);
@@ -59549,7 +59415,7 @@ class $P extends PR {
       this.setValues(e);
   }
 }
-class eD extends _R {
+class eD extends InstancedMesh {
   constructor(e) {
     super(e),
       publicField(this, "geometry"),
@@ -59576,7 +59442,7 @@ class eD extends _R {
         e &&
           t &&
           t.forEach((e) => {
-            const t = T_(e);
+            const t = colorToVec3(e);
             i.push(...t.toArray());
           }),
           (this.instanceColor = new Wa(new Float32Array(i), 3));
@@ -60277,7 +60143,7 @@ class fD extends pD {
         : this.parameters.lineWidth;
       const _c = this.parameters.vertexColors
         ? e.color[p]
-        : I_(this.parameters.color);
+        : colorToArr4(this.parameters.color);
 
       this._flags = {
         lastFlip: -1,
@@ -60304,9 +60170,9 @@ class fD extends pD {
         let curColor = [];
 
         if (this.parameters.vertexColors && _c[e]) {
-          curColor = I_(_c[e]);
+          curColor = colorToArr4(_c[e]);
         } else {
-          curColor = I_(this.parameters.color);
+          curColor = colorToArr4(this.parameters.color);
         }
 
         const S = this._segmentLines(
@@ -60437,7 +60303,7 @@ class _D extends CommonShaderMaterial {
         "animationIdle",
         "isEmissive",
       ]),
-      k_(this, [["color", "uColor", w_]]),
+      k_(this, [["color", "uColor", colorToVec4]]),
       O_(this, [
         ["vertexColors", "USE_A_COLOR"],
         ["vertexZIndex", "MVT_USE_VERTEX_ZINDEX"],
@@ -61151,7 +61017,7 @@ class WD extends rn {
     for (let c = 0; c < e.position.length; c++) {
       const h = e.position[c],
         u = e.index[c],
-        d = e.color ? I_(e.color[c]) : jD,
+        d = e.color ? colorToArr4(e.color[c]) : jD,
         p = this.parameters.vertexHeights ? e.height[c] : this.extrudeValue;
       (t = vD.exports.flatten(h)),
         (i = vD.exports(t.vertices, t.holes, t.dimensions)),
@@ -61192,7 +61058,7 @@ class WD extends rn {
       for (let c = 0; c < e.position.length; c++) {
         const t = e.position[c],
           i = e.index[c],
-          h = e.color ? I_(e.color[c]) : jD,
+          h = e.color ? colorToArr4(e.color[c]) : jD,
           u = this.parameters.vertexHeights ? e.height[c] : this.extrudeValue;
         u > 0 && this.addSideFace(t, u, n.length / 3, n, o, s, r, l, h, a, i);
       }
@@ -61630,8 +61496,8 @@ class tL extends rn {
       const h = e.position[l];
       e.index[l];
       const c = this.parameters.vertexColors
-          ? I_(e.color[l])
-          : I_(this.parameters.color),
+          ? colorToArr4(e.color[l])
+          : colorToArr4(this.parameters.color),
         u = this.parameters.vertexHeights
           ? e.height[l]
           : this.parameters.height;
@@ -61731,7 +61597,7 @@ class sL extends CommonShaderMaterial {
         "animationRatio",
         "isEmissive",
       ]),
-      k_(this, [["color", "uColor", w_]]),
+      k_(this, [["color", "uColor", colorToVec4]]),
       O_(this, [
         ["vertexColors", "USE_A_COLOR"],
         ["enableAnimation", "USE_ANIMATION"],
@@ -61832,7 +61698,7 @@ class rL extends Mesh {
       (this.needsUpdate = !1);
   }
 }
-class aL extends MR {
+class LightSphereGeometry extends MR {
   constructor(e) {
     super(e),
       publicField(this, "isLightSphereGeometry", !0),
@@ -62074,7 +61940,7 @@ class cL extends hL {
     this.parameters.isMultiColor && this.setAttribute("mColor", new Ki(e, 4));
   }
   addMultiColors(e, t, i) {
-    const n = this.parameters.multiColor.map((e) => I_(e));
+    const n = this.parameters.multiColor.map((e) => colorToArr4(e));
     if ("cap" === e)
       i === this.parameters.height
         ? t.push(...n[n.length - 1])
@@ -64469,6 +64335,7 @@ class GL extends kL {
   }
 }
 const VL = 6371008.8;
+
 class QL extends Object3D {
   constructor() {
     super(...arguments),
@@ -64568,7 +64435,8 @@ class QL extends Object3D {
           this._editor.addEventListener("addNode", this._addNode)));
   }
 }
-class HL {
+
+class ClippingPlane {
   constructor(e, t) {
     publicField(this, "isClippingPlane", !0),
       (this._distance = t),
@@ -64591,10 +64459,11 @@ class HL {
     const i = new Vector2((e[0] + t[0]) / 2, (e[1] + t[1]) / 2),
       n = Sv(new Vector2(e[0] - t[0], e[1] - t[1])).normalize(),
       s = i.dot(n);
-    return new HL(new Vector3(n.x, n.y, 0), -s);
+    return new ClippingPlane(new Vector3(n.x, n.y, 0), -s);
   }
 }
-class jL extends Object3D {
+
+class ClippingPlaneCollection extends Object3D {
   constructor(e, t = {}) {
     super(),
       publicField(this, "_planes", []),
@@ -64734,10 +64603,10 @@ class jL extends Object3D {
       const e = (r + 1) % s,
         i = t[r],
         a = t[e],
-        o = HL.fromPoint(i, a);
+        o = ClippingPlane.fromPoint(i, a);
       n.push(o);
     }
-    return new jL(e, { planes: n, edgeWidth: 0, ...i });
+    return new ClippingPlaneCollection(e, { planes: n, edgeWidth: 0, ...i });
   }
   get(e) {
     return this._planes[e];
@@ -64801,12 +64670,15 @@ class WL {
       });
     return (
       -1 !== i &&
-      (t.splice(i, 1), e instanceof jL && e.destroy(), (this._dirty = !0), !0)
+      (t.splice(i, 1),
+      e instanceof ClippingPlaneCollection && e.destroy(),
+      (this._dirty = !0),
+      !0)
     );
   }
   removeAll() {
     this._multiCollections.forEach(function (e) {
-      e instanceof jL && e.destroy();
+      e instanceof ClippingPlaneCollection && e.destroy();
     }),
       (this._multiCollections = []),
       (this._dirty = !0);
@@ -64880,7 +64752,7 @@ class WL {
   }
   destroy() {
     this._multiCollections.forEach(function (e) {
-      e instanceof jL && e.destroy();
+      e instanceof ClippingPlaneCollection && e.destroy();
     }),
       (this._multiCollections = void 0),
       this.texture && this.texture.dispose();
@@ -65005,11 +64877,11 @@ class qL extends Object3D {
           s = this._cutTriangle;
         for (let e = 0; e < this._cutTriangle.length; ) {
           const t = s.slice(e, e + 3).map((e) => n.slice(3 * e, 3 * (e + 1))),
-            r = jL.fromPoints(this._engine, t, {});
+            r = ClippingPlaneCollection.fromPoints(this._engine, t, {});
           this._updateExcavateMinHeight(t), i.add(r), (e += 3);
         }
       } else {
-        const t = jL.fromPoints(this._engine, e, {});
+        const t = ClippingPlaneCollection.fromPoints(this._engine, e, {});
         this._updateExcavateMinHeight(e), i.add(t);
       }
       (this._multiClippingPlaneCollection = i), (this.dirty = !1);
@@ -86490,7 +86362,7 @@ exports.AreaMeasure = class extends QL {
     return this._area;
   }
 };
-exports.BubblePoint = class extends _R {
+exports.BubblePoint = class extends InstancedMesh {
   constructor(e) {
     super(e),
       publicField(this, "geometry"),
@@ -86677,8 +86549,8 @@ exports.BufferAnalysis = class extends Object3D {
 exports.CSVDataSource = $I;
 exports.Circle = eD;
 exports.CircleEditor = UL;
-exports.ClippingPlane = HL;
-exports.ClippingPlaneCollection = jL;
+exports.ClippingPlane = ClippingPlane;
+exports.ClippingPlaneCollection = ClippingPlaneCollection;
 exports.ClusterPoint = class extends GP {
   constructor(e = {}) {
     super(e),
@@ -86767,7 +86639,7 @@ exports.ClusterPoint = class extends GP {
     return this._clusterDataSource;
   }
 };
-exports.Cone = class extends _R {
+exports.Cone = class extends InstancedMesh {
   constructor(e) {
     super(e),
       publicField(this, "geometry"),
@@ -87446,7 +87318,7 @@ exports.EffectModelPoint = class extends GeoObject {
             (4 === s.itemSize
               ? (i.vertexColors4 = !0)
               : 3 === s.itemSize && (i.vertexColors3 = !0));
-          const r = new _R(n, i);
+          const r = new InstancedMesh(n, i);
           (r.engine = this.engine),
             (r.receiveRaycast = this.receiveRaycast),
             (r.dataAutoUpdate = !1),
@@ -87613,7 +87485,7 @@ exports.Engine = class {
   }
 };
 exports.ExtendMeshStandardMaterial = Tw;
-exports.FanPoint = class extends _R {
+exports.FanPoint = class extends InstancedMesh {
   constructor(e) {
     super(e),
       publicField(this, "geometry"),
@@ -87834,9 +87706,9 @@ exports.FlyManager = class extends Object3D {
   }
 };
 exports.FoliageLeafMaterial = Pw;
-exports.GeoInstancedMesh = _R;
+exports.GeoInstancedMesh = InstancedMesh;
 exports.GeoJSONDataSource = UT;
-exports.Grid = class extends _R {
+exports.Grid = class extends InstancedMesh {
   constructor(e) {
     super(e),
       publicField(this, "geometry"),
@@ -87887,7 +87759,7 @@ exports.Heatmap = makeHeatmapClass(
   sD,
   iD,
   rn,
-  _R
+  InstancedMesh
 );
 exports.Heatmap3D = makeHeatmap3DClass(
   Mesh,
@@ -88144,6 +88016,7 @@ exports.LODModel = class extends Object3D {
   }
 };
 exports.Label = yP;
+
 exports.LengthMeasure = class extends QL {
   constructor(e, n = {}) {
     super(),
@@ -88297,7 +88170,8 @@ exports.LengthMeasure = class extends QL {
     return this._segmentLengths;
   }
 };
-exports.LightSphere = class extends _R {
+
+exports.LightSphere = class extends InstancedMesh {
   constructor(e) {
     super(e),
       publicField(this, "geometry"),
@@ -88325,7 +88199,7 @@ exports.LightSphere = class extends _R {
       ]);
   }
   initObject() {
-    (this.geometry = new aL(this.parameters)),
+    (this.geometry = new LightSphereGeometry(this.parameters)),
       (this.material = new lL(this.parameters)),
       (this.material.animationRotate = !0),
       this.material.setCommonUniforms(this.engine.rendering.uniforms);
@@ -88368,6 +88242,7 @@ exports.Marker = class extends bL {
     this.dom && (this.dom.height = e), (this._height = e);
   }
 };
+
 exports.MaskLayer = class extends Object3D {
   constructor() {
     super(...arguments),
@@ -89242,7 +89117,7 @@ exports.PathTracker = class extends Object3D {
     }
   }
 };
-exports.Pillar = class extends _R {
+exports.Pillar = class extends InstancedMesh {
   constructor(e) {
     super(e),
       publicField(this, "geometry"),
@@ -89386,7 +89261,7 @@ exports.PointEditor = class extends kL {
   initPoint() {
     let e = (this._pointDataSource = new mA());
     (this._point = this._engine.add(
-      new ER({
+      new SimplePoint({
         color: this._options.pointColor,
         size: 1.1 * this._options.pointSize,
       })
@@ -89395,7 +89270,7 @@ exports.PointEditor = class extends kL {
   initCompleteElement() {
     let e = (this._completedDataSource = new mA()),
       t = (this._completedElement = this._engine.add(
-        new ER({
+        new SimplePoint({
           color: this._options.pointColor,
           size: this._options.pointSize,
         })
@@ -89915,7 +89790,7 @@ exports.RoadLight3DTilesElement = class extends IT {
     return this._allPowerOn;
   }
 };
-exports.ShapePoint = class extends _R {
+exports.ShapePoint = class extends InstancedMesh {
   constructor(e) {
     super(e),
       (this.parameters = e),
@@ -90058,7 +89933,7 @@ exports.SightLine = class extends Object3D {
     this._invisibleColor = e;
   }
 };
-exports.SimplePoint = ER;
+exports.SimplePoint = SimplePoint;
 exports.SkyLine = class extends Object3D {
   constructor() {
     super(...arguments),
@@ -90312,11 +90187,11 @@ exports.SlopeAnalysis = class extends Object3D {
         a = s;
       for (let t = 0; t < s.length; ) {
         const e = a.slice(t, t + 3).map((e) => r.slice(3 * e, 3 * (e + 1))),
-          n = jL.fromPoints(this._engine, e, {});
+          n = ClippingPlaneCollection.fromPoints(this._engine, e, {});
         i.add(n), (t += 3);
       }
     } else {
-      const e = jL.fromPoints(this._engine, t, {});
+      const e = ClippingPlaneCollection.fromPoints(this._engine, t, {});
       i.add(e);
     }
     i.update(), (this._coverageClippingPlanes = i), (this._coverageArea = t);
@@ -90374,7 +90249,7 @@ exports.Spark = class extends XP {
             s.push(0, this.parameters.height)),
         this.parameters.vertexColors && e.color)
       ) {
-        let t = w_(e.color[a]);
+        let t = colorToVec4(e.color[a]);
         i.push(...t.toArray(), ...t.toArray());
       }
       r.push(2 * a, 2 * a + 1);
@@ -90391,7 +90266,7 @@ exports.Spark = class extends XP {
       (this.needsUpdate = !1);
   }
 };
-exports.SpecialPoint = class extends _R {
+exports.SpecialPoint = class extends InstancedMesh {
   constructor(e) {
     super(e),
       publicField(this, "geometry"),

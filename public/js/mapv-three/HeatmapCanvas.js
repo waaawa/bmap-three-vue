@@ -176,6 +176,7 @@ export class HeatmapCanvas {
       }
     }
   }
+
   _createCanvas() {
     if ("undefined" != typeof document) {
       return document.createElement("canvas");

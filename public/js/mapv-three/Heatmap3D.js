@@ -173,7 +173,9 @@ export function makeHeatmap3DClass(
       // 计算热力图纹理的分辨率
       // 保证最小分辨率256，最大不超过2048
       // 根据面积和半径动态计算合适的分辨率
-      let size = Math.max(256, Math.min((width * height) / 4000, 2048));
+      let size = Math.ceil(Math.max(64, width, height) / 64) * 32;
+
+      size = Math.min(2048, size);
 
       const rat = height / width;
       const scale = size / width;
