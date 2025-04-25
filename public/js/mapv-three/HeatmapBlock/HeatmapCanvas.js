@@ -160,8 +160,8 @@ export class HeatmapCanvas {
     const imgData = this.ctx.getImageData(
       left,
       top,
-      Math.round(this.size / this.scale),
-      Math.round(this.size / this.scale)
+      Math.ceil(this.size / this.scale),
+      Math.ceil(this.size / this.scale)
     );
     // 设置这一段imgData的透明度
     const data = imgData.data;

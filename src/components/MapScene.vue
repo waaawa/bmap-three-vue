@@ -210,9 +210,9 @@ export default {
           // console.log(item.data[item.ind + 1].value);
 
           // console.log(item.data);
-          // this.$heatmapBlock.setData(item.data[item.ind + 1]);
+          this.$heatmapBlock.setData(item.data[item.ind + 1]);
 
-          this.$heatmap3D.setData(item.data[item.ind + 1]);
+          // this.$heatmap3D.setData(item.data[item.ind + 1]);
         });
       });
 
@@ -254,10 +254,10 @@ export default {
       const heatmapBlock = await useHeatmapBlock({
         config: {
           opacity: 1,
-          size: 6, // 热力绘制半径
-          radiationSize: 0, // 效果半径
+          size: 8, // 热力绘制半径
+          radiationSize: 3, // 效果半径
           maxValue: 10, // 最大热力值
-          resolution: 256,
+          resolution: 512,
           attenuateMValueFactor: 1, //径向渐变速度
           gradient: {
             0: "rgb(50, 250, 56)",
