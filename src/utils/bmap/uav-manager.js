@@ -39,6 +39,13 @@ export async function useUAVManager({
   });
 
   /**
+   * @typedef {{ t:number, step: number, points: THREE.Vector3[], max: number, ind: number, len: number, a: THREE.Vector3, b: THREE.Vector3, data: any }} IMoveConfig
+   * @type {Record<string, IMoveConfig>}
+   */
+  const moveConfig = {};
+  const moveSubs = [];
+
+  /**
    * 添加UAV
    */
   const addUAV = ({ name, position, onClick }) => {
@@ -124,12 +131,19 @@ export async function useUAVManager({
     });
   };
 
-  /**
-   * @typedef {{ t:number, step: number, points: THREE.Vector3[], max: number, ind: number, len: number, a: THREE.Vector3, b: THREE.Vector3, data: any }} IMoveConfig
-   * @type {Record<string, IMoveConfig>}
-   */
-  const moveConfig = {};
-  const moveSubs = [];
+  const resetPosition = (name, position) => {
+    if (!record[name]) return;
+
+    const instance = record[name].instance;
+    instance.position.copy(getFixPos(position, "vec3"));
+    labelManager.upadteLabel({
+      id: name,
+      position: [position.x, position.y, position.z],
+      text: name,
+    });
+
+    moveConfig[name] = null;
+  };
 
   function onMove(cb) {
     moveSubs.push(cb);
@@ -233,6 +247,8 @@ export async function useUAVManager({
     update,
     moveTo,
     onMove,
+    setPosition,
+    resetPosition,
     dispose() {
       labelManager.dispose();
 
