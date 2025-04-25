@@ -78,6 +78,7 @@ import { BubblePoint } from "./threejs/objects/point/BubblePoint";
 import { ActiveMesh } from "./threejs/objects/point/ActiveMesh";
 import { Heatmap } from "./threejs/objects/heatmap/Heatmap";
 import { Heatmap3D } from "./threejs/objects/heatmap/Heatmap3D";
+import { HeatmapBlock } from "./threejs/objects/heatmap/HeatmapBlock";
 import { TextMesh } from "./threejs/objects/point/Text";
 import { Label } from "./threejs/objects/point/Label";
 import { EffectModelPoint } from "./threejs/objects/point/EffectModelPoint";

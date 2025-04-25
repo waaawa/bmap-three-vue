@@ -1,7 +1,8 @@
-import { publicField } from "./utils/index.js";
+import { publicField } from "../utils/index.js";
+import { Vector3 } from "../Vector.js";
 import { HeatmapCanvas, createCanvas } from "./HeatmapCanvas.js";
 
-export function makeHeatmap3DClass(
+export function makeHeatmapBlockClass(
   Mesh,
   PlaneGeometry,
   CommonMaterial,
@@ -42,6 +43,7 @@ export function makeHeatmap3DClass(
         void main() {
           gl_FragColor = texture2D(map, vUv);
           gl_FragColor.a *= opacity;
+          if ( gl_FragColor.a < 0.85 ) discard;
           #include <logdepthbuf_fragment>
         }
       `;
@@ -49,7 +51,7 @@ export function makeHeatmap3DClass(
         #define GLSLIFY 1
         #include <common>
         
-        uniform float heightRatio;
+        /* uniform float heightRatio; */
         uniform sampler2D map;
         
         varying vec2 vUv;
@@ -57,7 +59,7 @@ export function makeHeatmap3DClass(
         void main() { 
           vUv = vec2(uv.x, 1. - uv.y);
           #include <begin_vertex>
-          transformed.z = texture2D(map, vUv).a * heightRatio;
+          /* transformed.z = texture2D(map, vUv).a * heightRatio; */
           /* #include <project_vertex> */
           
           vec4 mvPosition = vec4( transformed, 1.0 );
@@ -83,7 +85,7 @@ export function makeHeatmap3DClass(
         }
       `;
       Object.assign(this.uniforms, In.clone(lD));
-      N_(this, ["heightRatio", "resolution", "opacity", "map", "isEmissive"]);
+      N_(this, ["resolution", "opacity", "map", "isEmissive"]);
       this.setValues(e);
     }
   }
@@ -92,7 +94,9 @@ export function makeHeatmap3DClass(
     constructor(e) {
       super(e);
       publicField(this, "_gradient");
-      publicField(this, "_radius");
+      publicField(this, "_size");
+      publicField(this, "_resolution");
+      publicField(this, "_effectSize");
       publicField(this, "_maxValue");
       publicField(this, "isHeatmap3D", !0);
       publicField(this, "frustumCulled", !1);
@@ -109,8 +113,11 @@ export function makeHeatmap3DClass(
         1: "rgba(255,0,0,1)",
       };
 
-      this._radius = this.parameters.radius || 100;
+      this._size = this.parameters.size || 10;
+      this._resolution = this.parameters.resolution || 0;
       this._maxValue = this.parameters.maxValue || 1;
+      this._radiationSize = this.parameters.radiationSize || 0;
+      this._completePath = true;
       this.defineMaterialProxyProperties([
         "resolution",
         "opacity",
@@ -118,106 +125,94 @@ export function makeHeatmap3DClass(
       ]);
     }
     initObject() {
-      const { radius: e, maxValue: t, ...i } = this.parameters;
+      const {
+        radius: e,
+        maxValue: t,
+        resolution,
+        radiationSize,
+        ...params
+      } = this.parameters;
       this.geometry = new PlaneGeometry(1, 1, 1, 1);
-      this.material = new HeatmapMaterial(i);
+      this.material = new HeatmapMaterial(params);
       this.material.setCommonUniforms(this.engine.rendering.uniforms);
     }
-    setData() {
-      let e = this.dataSource.data,
-        min_x = 1 / 0,
-        min_y = 1 / 0,
-        min_z = 1 / 0,
-        max_x = -1 / 0,
-        max_y = -1 / 0,
-        max_z = -1 / 0,
-        gap = this._radius * 4,
-        nodeData = [];
 
-      if (!e.position.length) return;
+    lerpData(data) {
+      const { position, count } = data;
 
-      // 遍历所有位置点
-      for (let v = 0; v < e.position.length; v++) {
-        // 获取当前点的位置坐标
-        const poi = e.position[v];
-        // 获取当前点的权重值，如果没有设置则默认为1
-        const count = e.count ? e.count[v] : 1;
+      const vec1 = new Vector3();
+      const vec2 = new Vector3();
+      const vec3 = new Vector3();
 
-        // 计算包围盒的最小坐标
-        min_x = Math.min(poi[0], min_x); // x最小值
-        min_y = Math.min(poi[1], min_y); // y最小值
-        min_z = Math.min(poi[2], min_z); // z最小值
-        // 计算包围盒的最大坐标
-        max_x = Math.max(poi[0], max_x); // x最大值
-        max_y = Math.max(poi[1], max_y); // y最大值
-        max_z = Math.max(poi[2], max_z); // z最大值
+      const p = [];
+      const c = [];
+      const i = [];
 
-        // 将位置和权重信息保存到数组，用于后续热力图渲染
-        // [x, y, weight]
-        nodeData.push([poi[0], poi[1], count]);
+      // 处理数据，路径Vector2 两路径间隔超出 this._size 自动插值
+      for (let i = 1; i < position.length; i++) {
+        const [x1, y1, z1] = position[i - 1];
+        const [x2, y2, z2] = position[i];
+
+        p.push([x1, y1, z1]);
+        c.push(count[i - 1] || 0);
+
+        vec1.set(x1, y1, z1);
+        vec2.set(x2, y2, z2);
+
+        const value1 = count[i - 1] || 0;
+        const value2 = count[i] || 0;
+
+        const distance = vec1.distanceTo(vec2);
+        const segNum = Math.floor(distance / this._size);
+
+        if (segNum > 0) {
+          for (let j = 1; j <= segNum; j++) {
+            vec3.copy(vec1).lerp(vec2, j / segNum);
+
+            p.push([vec3.x, vec3.y, vec3.z]);
+            c.push(value1 + (value2 - value1) * (j / segNum));
+          }
+        }
       }
 
-      // 计算包围盒的中心点坐标
-      let center = [
-        (min_x + max_x) / 2,
-        (min_y + max_y) / 2,
-        (min_z + max_z) / 2,
-      ];
+      return { position: p, count: c, index: i };
+    }
 
-      // 设置热力图网格的中心位置
-      this.position.set(...center);
+    setData() {
+      let data = this.dataSource.data;
 
-      // 计算热力图的宽度和高度（包含边缘缓冲区）
-      let width = Math.ceil(max_x - min_x) + gap * 2; // 宽度
-      let height = Math.ceil(max_y - min_y) + gap * 2; // 高度
-
-      // 计算热力图纹理的分辨率
-      // 保证最小分辨率256，最大不超过2048
-      // 根据面积和半径动态计算合适的分辨率
-      let size = Math.ceil(Math.max(64, width, height) / 64) * 32;
-
-      size = Math.min(2048, size);
-
-      const rat = height / width;
-      const scale = size / width;
-
-      let canvasH = size * rat;
-      // 计算网格细分数，至少为1
-      let wSeg = parseInt(size / 2);
-      let hSeg = parseInt(canvasH / 2);
-
-      console.log(
-        [width, height, width / height],
-        [size, canvasH, size / canvasH]
-      );
-
-      // 创建用于渲染热力图的画布
-      let canvas = new createCanvas(size, canvasH);
-
-      // 将所有点的坐标转换到相对于左上角的位置
-      nodeData.forEach((e) => {
-        e[0] = (e[0] - min_x + gap) * scale; // x坐标转换
-        e[1] = (e[1] - min_y + gap) * scale; // y坐标转换
+      let heatmapCanvas = new HeatmapCanvas({
+        size: this._size,
+        gradient: this._gradient,
+        max: this._maxValue,
+        resolution: this._resolution,
+        radiationSize: this._radiationSize,
       });
 
-      let heatmapCanvas = new HeatmapCanvas(canvas, { scale });
-      let heatmapCanvasCtx = heatmapCanvas._ctx;
+      const canvas = new createCanvas(1, 1);
 
-      heatmapCanvasCtx.save();
-      // heatmapCanvasCtx.scale(size / width, canvasH / height);
+      const lerpData = this.lerpData(data);
+      console.log(data, lerpData);
 
       heatmapCanvas
-        .data(nodeData)
-        .radius(this._radius)
-        .max(this._maxValue)
-        .gradient(this._gradient)
+        .setData(lerpData)
+        .calcParamsByData()
+        .setCanvas(canvas)
         .draw();
 
-      heatmapCanvasCtx.restore();
+      this.position.set(
+        heatmapCanvas.centerX,
+        heatmapCanvas.centerY,
+        heatmapCanvas.centerZ
+      );
 
       this.geometry && this.geometry.dispose();
 
-      this.geometry = new PlaneGeometry(width, height, wSeg, hSeg);
+      this.geometry = new PlaneGeometry(
+        heatmapCanvas.fullWidth,
+        heatmapCanvas.fullHeight
+      );
+
       this.geometry.computeBoundingSphere();
       this.geometry.computeBoundingBox();
 

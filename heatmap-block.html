@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document</title>
+</head>
+
+<body>
+  <canvas id="canvas"></canvas>
+
+  <script type="module">
+    class HeatmapCanvas {
+      constructor(config) {
+        const { gap, size, gradient, max, radiationSize, resolution } = config;
+
+        this.gap = gap;
+        this.size = size;
+        this.gradient = gradient;
+        this.max = max || 1;
+        this.data = [];
+
+        this.resolution = resolution || 100;
+
+        this.radiationSize = radiationSize || 0;
+
+        this.defaultGradient = {
+          0.4: "blue",
+          0.6: "cyan",
+          0.7: "lime",
+          0.8: "yellow",
+          1: "red",
+        };
+      }
+
+      setSize(size) {
+        this.size = size || this.size;
+        return this;
+      }
+
+      setGap(gap) {
+        this.gap = gap || this.gap;
+        return this;
+      }
+
+      setGradient(gradient) {
+        this.gradient = gradient || this.defaultGradient;
+        return this;
+      }
+
+      /** @param {{position: number[], value: number}[]} data */
+      setData(data) {
+        this.data = data;
+        return this;
+      }
+
+      calcParamsByData() {
+        if (!this.data || !this.data?.position?.length) return;
+
+        // 计算位置范围
+        const positions = this.data.position;
+        let minX, minY, minZ, maxX, maxY, maxZ;
+
+        for (let i = 0; i < positions.length; i++) {
+          const [x, y, z] = positions[i];
+          if (i === 0) {
+            minX = maxX = x;
+            minY = maxY = y;
+            minZ = maxZ = z;
+          } else {
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+            minZ = Math.min(minZ, z);
+            maxZ = Math.max(maxZ, z);
+          }
+        }
+
+        this.minX = minX;
+        this.maxX = maxX;
+        this.minY = minY;
+        this.maxY = maxY;
+        this.minZ = minZ;
+        this.maxZ = maxZ;
+
+        // 计算宽高
+        this.width = this.maxX - this.minX;
+        this.height = this.maxY - this.minY;
+
+        this.xCount = Math.ceil(
+          this.width / this.size + this.size * this.radiationSize * 2
+        );
+        this.yCount = Math.ceil(
+          this.height / this.size + this.size * this.radiationSize * 2
+        );
+
+        // 宽高size的倍数, 不包含边缘
+        this.fullWidth = this.xCount * this.size + this.size;
+        this.fullHeight = this.yCount * this.size + this.size;
+        this.aspectRatio = this.fullWidth / this.fullHeight;
+        this.aspectRatio2 = this.fullHeight / this.fullWidth;
+
+        // 中心点
+        this.centerX = (this.maxX + this.minX) / 2;
+        this.centerY = (this.maxY + this.minY) / 2;
+        this.centerZ = (this.maxZ + this.minZ) / 2;
+
+        this.ydiv = this.fullHeight - this.height;
+        this.xdiv = this.fullWidth - this.width;
+
+        this.rw = this.resolution;
+        this.rh = this.resolution * this.aspectRatio2;
+
+        if (this.rh < 1) {
+          this.rw = 1 * this.aspectRatio;
+          this.rh = 1;
+        }
+
+        this.scale = this.fullWidth / this.rw;
+
+        return this;
+      }
+
+      /**
+       *
+       * @param {HTMLCanvasElement} canvas
+       * @returns
+       */
+      setCanvas(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext("2d");
+
+        canvas.width = this.rw;
+        canvas.height = this.rh;
+
+        return this;
+      }
+
+      setupGradientCanvas() {
+        let canvas = createCanvas();
+        let ctx = canvas.getContext("2d", { willReadFrequently: true });
+        let canvasGradient = ctx.createLinearGradient(0, 0, 0, 256);
+        this.canvasGradient = canvasGradient;
+
+        canvas.width = 1;
+        canvas.height = 256;
+
+        for (var item in this.gradient) {
+          canvasGradient.addColorStop(+item, this.gradient[item]);
+        }
+
+        ctx.fillStyle = canvasGradient;
+        ctx.fillRect(0, 0, 1, 256);
+        this.gradientData = ctx.getImageData(0, 0, 1, 256).data;
+
+        return this;
+      }
+
+      // 设置画布某一块的颜色
+      setBlockColor(key, alpha) {
+        if (!this.gradientData) this.setupGradientCanvas();
+
+        const [x, y] = key.split("-");
+
+        const left = (x * this.size) / this.scale;
+        const top = (y * this.size) / this.scale;
+
+        // 获取这一段imgData
+        const imgData = this.ctx.getImageData(
+          left,
+          top,
+          Math.round(this.size / this.scale),
+          Math.round(this.size / this.scale)
+        );
+        // 设置这一段imgData的透明度
+        const data = imgData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const gi = alpha * 4;
+
+          data[i] = this.gradientData[gi]; // R
+          data[i + 1] = this.gradientData[gi + 1]; // G
+          data[i + 2] = this.gradientData[gi + 2]; // B
+          data[i + 3] = this.gradientData[gi + 3]; // A
+        }
+
+        this.ctx.putImageData(imgData, left, top);
+      }
+
+      draw() {
+        if (!this.canvas) {
+          console.error("请先设置canvas");
+          return;
+        }
+
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        const map = {};
+
+        const { position, count } = this.data;
+
+        position.forEach((item, i) => {
+          const [x, y] = item;
+          const alpha = Math.ceil(Math.min(1, count[i] / this.max) * 255);
+
+          let indexX = Math.floor((x - this.minX + this.xdiv / 2) / this.size);
+          let indexY = Math.floor((y - this.minY + this.ydiv / 2) / this.size);
+          let key = `${indexX}-${indexY}`;
+          map[key] = Math.max(map[key] || 0, alpha);
+
+          // radiationSize 扩散计算
+          if (this.radiationSize >= 1) {
+            const row = this.radiationSize * 2 + 1;
+            const col = row;
+            const mid = this.radiationSize;
+            let tempx, tempy;
+
+            for (let i = 0; i < row; i++) {
+              for (let j = 0; j < col; j++) {
+                tempx = indexX - mid + i;
+                tempy = indexY - mid + j;
+                if (tempx < 0 || tempy < 0) continue;
+                if (tempx >= this.xCount || tempy >= this.yCount) continue;
+                if (i === mid && j === mid) continue;
+
+                key = `${tempx}-${tempy}`;
+                // 计算距离中间的距离
+                const distance = Math.max(Math.abs(i - mid), Math.abs(j - mid));
+
+                // 阶梯式降低的透明度， 距离中间越远 透明度越低
+                const a = Math.floor(alpha * (1 - distance * 0.3));
+
+                map[key] = Math.max(map[key] || 0, a);
+              }
+            }
+          }
+        });
+
+        Object.keys(map).forEach((key) => {
+          this.setBlockColor(key, map[key]);
+        });
+
+        // this.ctx.globalAlpha = 1;
+        // this.ctx.scale(
+        //   this.resolution / this.fullWidth,
+        //   this.resolution / this.fullWidth
+        // );
+        // this.ctx.fillStyle = this.canvasGradient;
+        // this.ctx.fillRect(this.fullWidth - 10, 0, 30, 256);
+
+        return this;
+      }
+    }
+
+    function createCanvas(width, height) {
+      const canvas = document.createElement("canvas");
+
+      width && (canvas.width = width);
+      height && (canvas.height = height);
+
+      return canvas;
+    }
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+    const data = {
+      position: [
+        [0, 0],
+        [50, 50],
+        [100, 100],
+      ],
+      count: [1, 5, 10],
+    }
+
+    const heatmap = new HeatmapCanvas({
+      gap: 0,
+      size: 10,
+      radiationSize: 2,
+      resolution: 800,
+      max: 10,
+      gradient: {
+        0: "green",
+        0.5: "yellow",
+        1: "red",
+      },
+    });
+
+    heatmap.setData(data).calcParamsByData().setCanvas(canvas).draw();
+  </script>
+</body>
+
+</html>

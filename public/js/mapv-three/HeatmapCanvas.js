@@ -96,8 +96,8 @@ export class HeatmapCanvas {
     this._circle || this.radius(this.defaultRadius);
     this._grad || this.gradient(this.defaultGradient);
 
-    var t = this._ctx;
-    t.clearRect(0, 0, this._width, this._height);
+    var ctx = this._ctx;
+    ctx.clearRect(0, 0, this._width, this._height);
 
     for (var i, n = 0, s = this._data.length; n < s; n++) {
       i = this._data[n];
@@ -110,15 +110,15 @@ export class HeatmapCanvas {
       // t.globalAlpha = a;
       // t.drawImage(this._circle, x, y);
 
-      const imgData = t.getImageData(x, y, this._r * 2, this._r * 2);
+      const imgData = ctx.getImageData(x, y, this._r * 2, this._r * 2);
       this.mixImgData(imgData, this._circleImgData, a);
-      t.putImageData(imgData, x, y);
+      ctx.putImageData(imgData, x, y);
     }
 
-    var r = t.getImageData(0, 0, this._width, this._height);
+    var r = ctx.getImageData(0, 0, this._width, this._height);
 
     this._colorize(r.data, this._grad);
-    t.putImageData(r, 0, 0);
+    ctx.putImageData(r, 0, 0);
 
     return this;
   }

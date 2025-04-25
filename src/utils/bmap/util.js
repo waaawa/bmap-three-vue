@@ -42,13 +42,13 @@ export function clone(e) {
   return t;
 }
 
-export function merge(e) {
-  const t = {};
-  for (let i = 0; i < e.length; i++) {
-    const n = clone(e[i]);
-    for (const e in n) t[e] = n[e];
+export function merge(opts) {
+  const obj = {};
+  for (let i = 0; i < opts.length; i++) {
+    const opt = clone(opts[i]);
+    for (const key in opt) obj[key] = opt[key];
   }
-  return t;
+  return obj;
 }
 
 export function createElement(e) {

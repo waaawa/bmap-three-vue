@@ -46,6 +46,7 @@ import { Spark } from "./threejs/objects/point/Spark";
 import { Circle } from "./threejs/objects/point/Circle";
 import { Heatmap } from "./threejs/objects/heatmap/Heatmap";
 import { Heatmap3D } from "./threejs/objects/heatmap/Heatmap3D";
+import { HeatmapBlock } from "./threejs/objects/heatmap/HeatmapBlock";
 import { FatLine } from "./threejs/objects/line/FatLine";
 import { Wall } from "./threejs/objects/line/Wall";
 import { Polygon } from "./threejs/objects/polygon/Polygon";

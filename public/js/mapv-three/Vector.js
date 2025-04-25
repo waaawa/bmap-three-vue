@@ -1,8 +1,8 @@
 import { Quaternion } from "./Quaternion.js";
 
 export class Vector2 {
-  constructor(e = 0, t = 0) {
-    (Vector2.prototype.isVector2 = !0), (this.x = e), (this.y = t);
+  constructor(x = 0, y = 0) {
+    (Vector2.prototype.isVector2 = !0), (this.x = x), (this.y = y);
   }
   get width() {
     return this.x;

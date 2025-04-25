@@ -16,8 +16,9 @@ import * as THREE from "bmap-three";
 
 import { randomHexColorStr } from "@/utils/color";
 import { randomRange } from "@/utils/math";
-import { initHeadMap3D } from "@/utils/bmap/headmap";
-import { usePoints, useSimplePointManager } from "@/utils/bmap/points-manager";
+import { initHeadMap3D, useHeatmapBlock } from "@/utils/bmap/headmap";
+import { useSimplePointManager } from "@/utils/bmap/points-manager";
+import { isEmpty } from "@/utils/is";
 
 export default {
   name: "MapScene",
@@ -27,6 +28,7 @@ export default {
   },
   data() {
     return {
+      tasks: [],
       lineData: [],
       lineData2: [
         {
@@ -177,38 +179,41 @@ export default {
       });
 
       this.$uavManager.onMove((item) => {
-        const { x, y, z } = item.points[item.ind + 1];
+        this.tasks.push(() => {
+          const { x, y, z } = item.points[item.ind + 1];
 
-        const data = [
-          {
-            position: [x, y, z],
-            color: randomHexColorStr(),
-          },
-        ];
+          const data = [
+            {
+              position: [x, y, z],
+              color: randomHexColorStr(),
+            },
+          ];
 
-        if (item.ind === 0) {
-          const { x, y, z } = item.points[item.ind];
-          data.unshift({
-            position: [x, y, z],
-            color: randomHexColorStr(),
-          });
-        }
+          if (item.ind === 0) {
+            const { x, y, z } = item.points[item.ind];
+            data.unshift({
+              position: [x, y, z],
+              color: randomHexColorStr(),
+            });
+          }
 
-        // this.$lineManager.setAggregationLine({
-        //   name: "line",
-        //   flyData: data,
-        //   basicData: data,
-        // });
+          // this.$lineManager.setAggregationLine({
+          //   name: "line",
+          //   flyData: data,
+          //   basicData: data,
+          // });
 
-        // this.$pointsManager.addPoints(data);
+          // this.$pointsManager.addPoints(data);
 
-        this.$simplePointManager.addPoints(data);
+          this.$simplePointManager.addPoints(data);
 
-        // console.log(item.data[item.ind + 1].value);
+          // console.log(item.data[item.ind + 1].value);
 
-        // console.log(item.data);
+          // console.log(item.data);
+          // this.$heatmapBlock.setData(item.data[item.ind + 1]);
 
-        this.$heatmap3D.setData(item.data[item.ind + 1]);
+          this.$heatmap3D.setData(item.data[item.ind + 1]);
+        });
       });
 
       this.$engine.event.bind("click", (e) => {
@@ -244,6 +249,58 @@ export default {
       });
 
       this.$heatmap3D = $heatmap3D;
+    },
+    async initHeatMapBlock() {
+      const heatmapBlock = await useHeatmapBlock({
+        config: {
+          opacity: 1,
+          size: 6, // 热力绘制半径
+          radiationSize: 0, // 效果半径
+          maxValue: 10, // 最大热力值
+          resolution: 256,
+          attenuateMValueFactor: 1, //径向渐变速度
+          gradient: {
+            0: "rgb(50, 250, 56)",
+            0.5: "rgb(250, 250, 56)",
+            1: "rgb(250, 50, 56)",
+          },
+        },
+        engine: this.$engine,
+      });
+
+      this.$heatmapBlock = heatmapBlock;
+
+      this.$heatmapBlock.setData([
+        null,
+        {
+          position: [
+            116.38915021906352, 39.910191791137045, 30.557709687541504,
+          ],
+          value: 0,
+        },
+        {
+          position: [
+            116.38948838500497, 39.910263333970114, 11.902500043633934,
+          ],
+          value: 1,
+        },
+        {
+          position: [116.39011059317238, 39.91022318362194, 27.21243061605761],
+          value: 3,
+        },
+        {
+          position: [116.3906824682041, 39.91028792442783, 12.513488977425968],
+          value: 5,
+        },
+        {
+          position: [116.39112274974303, 39.91027968513256, 38.96035730053637],
+          value: 7,
+        },
+        {
+          position: [116.39155080228971, 39.91034681912313, 22.90873109691301],
+          value: 10,
+        },
+      ]);
     },
     async initLine() {
       const lineManager = await useLineManager({
@@ -312,6 +369,8 @@ export default {
       this.initLine();
 
       this.initPointsManager();
+
+      this.initHeatMapBlock();
     },
     initBMapGL(config) {
       const { center, zoom } = config;
@@ -340,6 +399,9 @@ export default {
       var clock = new THREE.Clock();
 
       this.$engine.rendering.addBeforeRenderListener(() => {
+        if (!isEmpty(this.tasks)) {
+          this.tasks.pop()();
+        }
         this.$uavManager?.update(clock.getDelta() * 30);
 
         if (this.mixerArr) {

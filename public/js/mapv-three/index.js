@@ -1,6 +1,7 @@
 import { EventDispatcher } from "./EventDispatcher.js";
 import { Texture } from "./Texture.js";
 import { makeHeatmap3DClass } from "./Heatmap3D.js";
+import { makeHeatmapBlockClass } from "./HeatmapBlock/index.js";
 import { makeHeatmapClass } from "./Heatmap.js";
 import {
   publicField,
@@ -13,11 +14,11 @@ import { Vector2, Vector3, Vector4 } from "./Vector.js";
 import { Matrix3 } from "./Matrix.js";
 import { Quaternion } from "./Quaternion.js";
 
-import { Pe } from "./utils/other.js";
 import { Source } from "./Source.js";
 import { Material } from "./Material.js";
 import { ShaderMaterial } from "./ShaderMaterial.js";
-import { makeSimplePoint } from './SimplePoint.js'
+import { makeSimplePoint } from "./SimplePoint.js";
+import { defineUniformProxy, defineUniformsVec4Proxy, defineUniformsCustomProxy, defineAutoUpdatePropHook } from './utils/index.js'
 
 import {
   r,
@@ -95,6 +96,7 @@ import {
   Ee,
   Se,
   Ce,
+  Pe
 } from "./utils/other.js";
 
 const t = "mapv";
@@ -5441,10 +5443,176 @@ const qn = {
       "#ifdef USE_TRANSMISSION\n\tuniform float transmission;\n\tuniform float thickness;\n\tuniform float attenuationDistance;\n\tuniform vec3 attenuationColor;\n\t#ifdef USE_TRANSMISSIONMAP\n\t\tuniform sampler2D transmissionMap;\n\t#endif\n\t#ifdef USE_THICKNESSMAP\n\t\tuniform sampler2D thicknessMap;\n\t#endif\n\tuniform vec2 transmissionSamplerSize;\n\tuniform sampler2D transmissionSamplerMap;\n\tuniform mat4 modelMatrix;\n\tuniform mat4 projectionMatrix;\n\tvarying vec3 vWorldPosition;\n\tfloat w0( float a ) {\n\t\treturn ( 1.0 / 6.0 ) * ( a * ( a * ( - a + 3.0 ) - 3.0 ) + 1.0 );\n\t}\n\tfloat w1( float a ) {\n\t\treturn ( 1.0 / 6.0 ) * ( a *  a * ( 3.0 * a - 6.0 ) + 4.0 );\n\t}\n\tfloat w2( float a ){\n\t\treturn ( 1.0 / 6.0 ) * ( a * ( a * ( - 3.0 * a + 3.0 ) + 3.0 ) + 1.0 );\n\t}\n\tfloat w3( float a ) {\n\t\treturn ( 1.0 / 6.0 ) * ( a * a * a );\n\t}\n\tfloat g0( float a ) {\n\t\treturn w0( a ) + w1( a );\n\t}\n\tfloat g1( float a ) {\n\t\treturn w2( a ) + w3( a );\n\t}\n\tfloat h0( float a ) {\n\t\treturn - 1.0 + w1( a ) / ( w0( a ) + w1( a ) );\n\t}\n\tfloat h1( float a ) {\n\t\treturn 1.0 + w3( a ) / ( w2( a ) + w3( a ) );\n\t}\n\tvec4 bicubic( sampler2D tex, vec2 uv, vec4 texelSize, float lod ) {\n\t\tuv = uv * texelSize.zw + 0.5;\n\t\tvec2 iuv = floor( uv );\n\t\tvec2 fuv = fract( uv );\n\t\tfloat g0x = g0( fuv.x );\n\t\tfloat g1x = g1( fuv.x );\n\t\tfloat h0x = h0( fuv.x );\n\t\tfloat h1x = h1( fuv.x );\n\t\tfloat h0y = h0( fuv.y );\n\t\tfloat h1y = h1( fuv.y );\n\t\tvec2 p0 = ( vec2( iuv.x + h0x, iuv.y + h0y ) - 0.5 ) * texelSize.xy;\n\t\tvec2 p1 = ( vec2( iuv.x + h1x, iuv.y + h0y ) - 0.5 ) * texelSize.xy;\n\t\tvec2 p2 = ( vec2( iuv.x + h0x, iuv.y + h1y ) - 0.5 ) * texelSize.xy;\n\t\tvec2 p3 = ( vec2( iuv.x + h1x, iuv.y + h1y ) - 0.5 ) * texelSize.xy;\n\t\treturn g0( fuv.y ) * ( g0x * textureLod( tex, p0, lod ) + g1x * textureLod( tex, p1, lod ) ) +\n\t\t\tg1( fuv.y ) * ( g0x * textureLod( tex, p2, lod ) + g1x * textureLod( tex, p3, lod ) );\n\t}\n\tvec4 textureBicubic( sampler2D sampler, vec2 uv, float lod ) {\n\t\tvec2 fLodSize = vec2( textureSize( sampler, int( lod ) ) );\n\t\tvec2 cLodSize = vec2( textureSize( sampler, int( lod + 1.0 ) ) );\n\t\tvec2 fLodSizeInv = 1.0 / fLodSize;\n\t\tvec2 cLodSizeInv = 1.0 / cLodSize;\n\t\tvec4 fSample = bicubic( sampler, uv, vec4( fLodSizeInv, fLodSize ), floor( lod ) );\n\t\tvec4 cSample = bicubic( sampler, uv, vec4( cLodSizeInv, cLodSize ), ceil( lod ) );\n\t\treturn mix( fSample, cSample, fract( lod ) );\n\t}\n\tvec3 getVolumeTransmissionRay( const in vec3 n, const in vec3 v, const in float thickness, const in float ior, const in mat4 modelMatrix ) {\n\t\tvec3 refractionVector = refract( - v, normalize( n ), 1.0 / ior );\n\t\tvec3 modelScale;\n\t\tmodelScale.x = length( vec3( modelMatrix[ 0 ].xyz ) );\n\t\tmodelScale.y = length( vec3( modelMatrix[ 1 ].xyz ) );\n\t\tmodelScale.z = length( vec3( modelMatrix[ 2 ].xyz ) );\n\t\treturn normalize( refractionVector ) * thickness * modelScale;\n\t}\n\tfloat applyIorToRoughness( const in float roughness, const in float ior ) {\n\t\treturn roughness * clamp( ior * 2.0 - 2.0, 0.0, 1.0 );\n\t}\n\tvec4 getTransmissionSample( const in vec2 fragCoord, const in float roughness, const in float ior ) {\n\t\tfloat lod = log2( transmissionSamplerSize.x ) * applyIorToRoughness( roughness, ior );\n\t\treturn textureBicubic( transmissionSamplerMap, fragCoord.xy, lod );\n\t}\n\tvec3 volumeAttenuation( const in float transmissionDistance, const in vec3 attenuationColor, const in float attenuationDistance ) {\n\t\tif ( isinf( attenuationDistance ) ) {\n\t\t\treturn vec3( 1.0 );\n\t\t} else {\n\t\t\tvec3 attenuationCoefficient = -log( attenuationColor ) / attenuationDistance;\n\t\t\tvec3 transmittance = exp( - attenuationCoefficient * transmissionDistance );\t\t\treturn transmittance;\n\t\t}\n\t}\n\tvec4 getIBLVolumeRefraction( const in vec3 n, const in vec3 v, const in float roughness, const in vec3 diffuseColor,\n\t\tconst in vec3 specularColor, const in float specularF90, const in vec3 position, const in mat4 modelMatrix,\n\t\tconst in mat4 viewMatrix, const in mat4 projMatrix, const in float ior, const in float thickness,\n\t\tconst in vec3 attenuationColor, const in float attenuationDistance ) {\n\t\tvec3 transmissionRay = getVolumeTransmissionRay( n, v, thickness, ior, modelMatrix );\n\t\tvec3 refractedRayExit = position + transmissionRay;\n\t\tvec4 ndcPos = projMatrix * viewMatrix * vec4( refractedRayExit, 1.0 );\n\t\tvec2 refractionCoords = ndcPos.xy / ndcPos.w;\n\t\trefractionCoords += 1.0;\n\t\trefractionCoords /= 2.0;\n\t\tvec4 transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );\n\t\tvec3 transmittance = diffuseColor * volumeAttenuation( length( transmissionRay ), attenuationColor, attenuationDistance );\n\t\tvec3 attenuatedColor = transmittance * transmittedLight.rgb;\n\t\tvec3 F = EnvironmentBRDF( n, v, specularColor, specularF90, roughness );\n\t\tfloat transmittanceFactor = ( transmittance.r + transmittance.g + transmittance.b ) / 3.0;\n\t\treturn vec4( ( 1.0 - F ) * attenuatedColor, 1.0 - ( 1.0 - transmittedLight.a ) * transmittanceFactor );\n\t}\n#endif",
     uv_pars_fragment:
       "#if defined( USE_UV ) || defined( USE_ANISOTROPY )\n\tvarying vec2 vUv;\n#endif\n#ifdef USE_MAP\n\tvarying vec2 vMapUv;\n#endif\n#ifdef USE_ALPHAMAP\n\tvarying vec2 vAlphaMapUv;\n#endif\n#ifdef USE_LIGHTMAP\n\tvarying vec2 vLightMapUv;\n#endif\n#ifdef USE_AOMAP\n\tvarying vec2 vAoMapUv;\n#endif\n#ifdef USE_BUMPMAP\n\tvarying vec2 vBumpMapUv;\n#endif\n#ifdef USE_NORMALMAP\n\tvarying vec2 vNormalMapUv;\n#endif\n#ifdef USE_EMISSIVEMAP\n\tvarying vec2 vEmissiveMapUv;\n#endif\n#ifdef USE_METALNESSMAP\n\tvarying vec2 vMetalnessMapUv;\n#endif\n#ifdef USE_ROUGHNESSMAP\n\tvarying vec2 vRoughnessMapUv;\n#endif\n#ifdef USE_ANISOTROPYMAP\n\tvarying vec2 vAnisotropyMapUv;\n#endif\n#ifdef USE_CLEARCOATMAP\n\tvarying vec2 vClearcoatMapUv;\n#endif\n#ifdef USE_CLEARCOAT_NORMALMAP\n\tvarying vec2 vClearcoatNormalMapUv;\n#endif\n#ifdef USE_CLEARCOAT_ROUGHNESSMAP\n\tvarying vec2 vClearcoatRoughnessMapUv;\n#endif\n#ifdef USE_IRIDESCENCEMAP\n\tvarying vec2 vIridescenceMapUv;\n#endif\n#ifdef USE_IRIDESCENCE_THICKNESSMAP\n\tvarying vec2 vIridescenceThicknessMapUv;\n#endif\n#ifdef USE_SHEEN_COLORMAP\n\tvarying vec2 vSheenColorMapUv;\n#endif\n#ifdef USE_SHEEN_ROUGHNESSMAP\n\tvarying vec2 vSheenRoughnessMapUv;\n#endif\n#ifdef USE_SPECULARMAP\n\tvarying vec2 vSpecularMapUv;\n#endif\n#ifdef USE_SPECULAR_COLORMAP\n\tvarying vec2 vSpecularColorMapUv;\n#endif\n#ifdef USE_SPECULAR_INTENSITYMAP\n\tvarying vec2 vSpecularIntensityMapUv;\n#endif\n#ifdef USE_TRANSMISSIONMAP\n\tuniform mat3 transmissionMapTransform;\n\tvarying vec2 vTransmissionMapUv;\n#endif\n#ifdef USE_THICKNESSMAP\n\tuniform mat3 thicknessMapTransform;\n\tvarying vec2 vThicknessMapUv;\n#endif",
-    uv_pars_vertex:
-      "#if defined( USE_UV ) || defined( USE_ANISOTROPY )\n\tvarying vec2 vUv;\n#endif\n#ifdef USE_MAP\n\tuniform mat3 mapTransform;\n\tvarying vec2 vMapUv;\n#endif\n#ifdef USE_ALPHAMAP\n\tuniform mat3 alphaMapTransform;\n\tvarying vec2 vAlphaMapUv;\n#endif\n#ifdef USE_LIGHTMAP\n\tuniform mat3 lightMapTransform;\n\tvarying vec2 vLightMapUv;\n#endif\n#ifdef USE_AOMAP\n\tuniform mat3 aoMapTransform;\n\tvarying vec2 vAoMapUv;\n#endif\n#ifdef USE_BUMPMAP\n\tuniform mat3 bumpMapTransform;\n\tvarying vec2 vBumpMapUv;\n#endif\n#ifdef USE_NORMALMAP\n\tuniform mat3 normalMapTransform;\n\tvarying vec2 vNormalMapUv;\n#endif\n#ifdef USE_DISPLACEMENTMAP\n\tuniform mat3 displacementMapTransform;\n\tvarying vec2 vDisplacementMapUv;\n#endif\n#ifdef USE_EMISSIVEMAP\n\tuniform mat3 emissiveMapTransform;\n\tvarying vec2 vEmissiveMapUv;\n#endif\n#ifdef USE_METALNESSMAP\n\tuniform mat3 metalnessMapTransform;\n\tvarying vec2 vMetalnessMapUv;\n#endif\n#ifdef USE_ROUGHNESSMAP\n\tuniform mat3 roughnessMapTransform;\n\tvarying vec2 vRoughnessMapUv;\n#endif\n#ifdef USE_ANISOTROPYMAP\n\tuniform mat3 anisotropyMapTransform;\n\tvarying vec2 vAnisotropyMapUv;\n#endif\n#ifdef USE_CLEARCOATMAP\n\tuniform mat3 clearcoatMapTransform;\n\tvarying vec2 vClearcoatMapUv;\n#endif\n#ifdef USE_CLEARCOAT_NORMALMAP\n\tuniform mat3 clearcoatNormalMapTransform;\n\tvarying vec2 vClearcoatNormalMapUv;\n#endif\n#ifdef USE_CLEARCOAT_ROUGHNESSMAP\n\tuniform mat3 clearcoatRoughnessMapTransform;\n\tvarying vec2 vClearcoatRoughnessMapUv;\n#endif\n#ifdef USE_SHEEN_COLORMAP\n\tuniform mat3 sheenColorMapTransform;\n\tvarying vec2 vSheenColorMapUv;\n#endif\n#ifdef USE_SHEEN_ROUGHNESSMAP\n\tuniform mat3 sheenRoughnessMapTransform;\n\tvarying vec2 vSheenRoughnessMapUv;\n#endif\n#ifdef USE_IRIDESCENCEMAP\n\tuniform mat3 iridescenceMapTransform;\n\tvarying vec2 vIridescenceMapUv;\n#endif\n#ifdef USE_IRIDESCENCE_THICKNESSMAP\n\tuniform mat3 iridescenceThicknessMapTransform;\n\tvarying vec2 vIridescenceThicknessMapUv;\n#endif\n#ifdef USE_SPECULARMAP\n\tuniform mat3 specularMapTransform;\n\tvarying vec2 vSpecularMapUv;\n#endif\n#ifdef USE_SPECULAR_COLORMAP\n\tuniform mat3 specularColorMapTransform;\n\tvarying vec2 vSpecularColorMapUv;\n#endif\n#ifdef USE_SPECULAR_INTENSITYMAP\n\tuniform mat3 specularIntensityMapTransform;\n\tvarying vec2 vSpecularIntensityMapUv;\n#endif\n#ifdef USE_TRANSMISSIONMAP\n\tuniform mat3 transmissionMapTransform;\n\tvarying vec2 vTransmissionMapUv;\n#endif\n#ifdef USE_THICKNESSMAP\n\tuniform mat3 thicknessMapTransform;\n\tvarying vec2 vThicknessMapUv;\n#endif",
-    uv_vertex:
-      "#if defined( USE_UV ) || defined( USE_ANISOTROPY )\n\tvUv = vec3( uv, 1 ).xy;\n#endif\n#ifdef USE_MAP\n\tvMapUv = ( mapTransform * vec3( MAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_ALPHAMAP\n\tvAlphaMapUv = ( alphaMapTransform * vec3( ALPHAMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_LIGHTMAP\n\tvLightMapUv = ( lightMapTransform * vec3( LIGHTMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_AOMAP\n\tvAoMapUv = ( aoMapTransform * vec3( AOMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_BUMPMAP\n\tvBumpMapUv = ( bumpMapTransform * vec3( BUMPMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_NORMALMAP\n\tvNormalMapUv = ( normalMapTransform * vec3( NORMALMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_DISPLACEMENTMAP\n\tvDisplacementMapUv = ( displacementMapTransform * vec3( DISPLACEMENTMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_EMISSIVEMAP\n\tvEmissiveMapUv = ( emissiveMapTransform * vec3( EMISSIVEMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_METALNESSMAP\n\tvMetalnessMapUv = ( metalnessMapTransform * vec3( METALNESSMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_ROUGHNESSMAP\n\tvRoughnessMapUv = ( roughnessMapTransform * vec3( ROUGHNESSMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_ANISOTROPYMAP\n\tvAnisotropyMapUv = ( anisotropyMapTransform * vec3( ANISOTROPYMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_CLEARCOATMAP\n\tvClearcoatMapUv = ( clearcoatMapTransform * vec3( CLEARCOATMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_CLEARCOAT_NORMALMAP\n\tvClearcoatNormalMapUv = ( clearcoatNormalMapTransform * vec3( CLEARCOAT_NORMALMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_CLEARCOAT_ROUGHNESSMAP\n\tvClearcoatRoughnessMapUv = ( clearcoatRoughnessMapTransform * vec3( CLEARCOAT_ROUGHNESSMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_IRIDESCENCEMAP\n\tvIridescenceMapUv = ( iridescenceMapTransform * vec3( IRIDESCENCEMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_IRIDESCENCE_THICKNESSMAP\n\tvIridescenceThicknessMapUv = ( iridescenceThicknessMapTransform * vec3( IRIDESCENCE_THICKNESSMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_SHEEN_COLORMAP\n\tvSheenColorMapUv = ( sheenColorMapTransform * vec3( SHEEN_COLORMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_SHEEN_ROUGHNESSMAP\n\tvSheenRoughnessMapUv = ( sheenRoughnessMapTransform * vec3( SHEEN_ROUGHNESSMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_SPECULARMAP\n\tvSpecularMapUv = ( specularMapTransform * vec3( SPECULARMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_SPECULAR_COLORMAP\n\tvSpecularColorMapUv = ( specularColorMapTransform * vec3( SPECULAR_COLORMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_SPECULAR_INTENSITYMAP\n\tvSpecularIntensityMapUv = ( specularIntensityMapTransform * vec3( SPECULAR_INTENSITYMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_TRANSMISSIONMAP\n\tvTransmissionMapUv = ( transmissionMapTransform * vec3( TRANSMISSIONMAP_UV, 1 ) ).xy;\n#endif\n#ifdef USE_THICKNESSMAP\n\tvThicknessMapUv = ( thicknessMapTransform * vec3( THICKNESSMAP_UV, 1 ) ).xy;\n#endif",
+    uv_pars_vertex: `
+      #if defined( USE_UV ) || defined( USE_ANISOTROPY )
+        varying vec2 vUv;
+      #endif
+      #ifdef USE_MAP
+        uniform mat3 mapTransform;
+        varying vec2 vMapUv;
+      #endif
+      #ifdef USE_ALPHAMAP
+        uniform mat3 alphaMapTransform;
+        varying vec2 vAlphaMapUv;
+      #endif
+      #ifdef USE_LIGHTMAP
+        uniform mat3 lightMapTransform;
+        varying vec2 vLightMapUv;
+      #endif
+      #ifdef USE_AOMAP
+        uniform mat3 aoMapTransform;
+        varying vec2 vAoMapUv;
+      #endif
+      #ifdef USE_BUMPMAP
+        uniform mat3 bumpMapTransform;
+        varying vec2 vBumpMapUv;
+      #endif
+      #ifdef USE_NORMALMAP
+        uniform mat3 normalMapTransform;
+        varying vec2 vNormalMapUv;
+      #endif
+      #ifdef USE_DISPLACEMENTMAP
+        uniform mat3 displacementMapTransform;
+        varying vec2 vDisplacementMapUv;
+      #endif
+      #ifdef USE_EMISSIVEMAP
+        uniform mat3 emissiveMapTransform;
+        varying vec2 vEmissiveMapUv;
+      #endif
+      #ifdef USE_METALNESSMAP
+        uniform mat3 metalnessMapTransform;
+        varying vec2 vMetalnessMapUv;
+      #endif
+      #ifdef USE_ROUGHNESSMAP
+        uniform mat3 roughnessMapTransform;
+        varying vec2 vRoughnessMapUv;
+      #endif
+      #ifdef USE_ANISOTROPYMAP
+        uniform mat3 anisotropyMapTransform;
+        varying vec2 vAnisotropyMapUv;
+      #endif
+      #ifdef USE_CLEARCOATMAP
+        uniform mat3 clearcoatMapTransform;
+        varying vec2 vClearcoatMapUv;
+      #endif
+      #ifdef USE_CLEARCOAT_NORMALMAP
+        uniform mat3 clearcoatNormalMapTransform;
+        varying vec2 vClearcoatNormalMapUv;
+      #endif
+      #ifdef USE_CLEARCOAT_ROUGHNESSMAP
+        uniform mat3 clearcoatRoughnessMapTransform;
+        varying vec2 vClearcoatRoughnessMapUv;
+      #endif
+      #ifdef USE_SHEEN_COLORMAP
+        uniform mat3 sheenColorMapTransform;
+        varying vec2 vSheenColorMapUv;
+      #endif
+      #ifdef USE_SHEEN_ROUGHNESSMAP
+        uniform mat3 sheenRoughnessMapTransform;
+        varying vec2 vSheenRoughnessMapUv;
+      #endif
+      #ifdef USE_IRIDESCENCEMAP
+        uniform mat3 iridescenceMapTransform;
+        varying vec2 vIridescenceMapUv;
+      #endif
+      #ifdef USE_IRIDESCENCE_THICKNESSMAP
+        uniform mat3 iridescenceThicknessMapTransform;
+        varying vec2 vIridescenceThicknessMapUv;
+      #endif
+      #ifdef USE_SPECULARMAP
+        uniform mat3 specularMapTransform;
+        varying vec2 vSpecularMapUv;
+      #endif
+      #ifdef USE_SPECULAR_COLORMAP
+        uniform mat3 specularColorMapTransform;
+        varying vec2 vSpecularColorMapUv;
+      #endif
+      #ifdef USE_SPECULAR_INTENSITYMAP
+        uniform mat3 specularIntensityMapTransform;
+        varying vec2 vSpecularIntensityMapUv;
+      #endif
+      #ifdef USE_TRANSMISSIONMAP
+        uniform mat3 transmissionMapTransform;
+        varying vec2 vTransmissionMapUv;
+      #endif
+      #ifdef USE_THICKNESSMAP
+        uniform mat3 thicknessMapTransform;
+        varying vec2 vThicknessMapUv;
+      #endif`,
+    uv_vertex: `
+      #if defined( USE_UV ) || defined( USE_ANISOTROPY )
+        vUv = vec3( uv, 1 ).xy;
+      #endif
+      #ifdef USE_MAP
+        vMapUv = ( mapTransform * vec3( MAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_ALPHAMAP
+        vAlphaMapUv = ( alphaMapTransform * vec3( ALPHAMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_LIGHTMAP
+        vLightMapUv = ( lightMapTransform * vec3( LIGHTMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_AOMAP
+        vAoMapUv = ( aoMapTransform * vec3( AOMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_BUMPMAP
+        vBumpMapUv = ( bumpMapTransform * vec3( BUMPMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_NORMALMAP
+        vNormalMapUv = ( normalMapTransform * vec3( NORMALMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_DISPLACEMENTMAP
+        vDisplacementMapUv = ( displacementMapTransform * vec3( DISPLACEMENTMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_EMISSIVEMAP
+        vEmissiveMapUv = ( emissiveMapTransform * vec3( EMISSIVEMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_METALNESSMAP
+        vMetalnessMapUv = ( metalnessMapTransform * vec3( METALNESSMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_ROUGHNESSMAP
+        vRoughnessMapUv = ( roughnessMapTransform * vec3( ROUGHNESSMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_ANISOTROPYMAP
+        vAnisotropyMapUv = ( anisotropyMapTransform * vec3( ANISOTROPYMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_CLEARCOATMAP
+        vClearcoatMapUv = ( clearcoatMapTransform * vec3( CLEARCOATMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_CLEARCOAT_NORMALMAP
+        vClearcoatNormalMapUv = ( clearcoatNormalMapTransform * vec3( CLEARCOAT_NORMALMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_CLEARCOAT_ROUGHNESSMAP
+        vClearcoatRoughnessMapUv = ( clearcoatRoughnessMapTransform * vec3( CLEARCOAT_ROUGHNESSMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_IRIDESCENCEMAP
+        vIridescenceMapUv = ( iridescenceMapTransform * vec3( IRIDESCENCEMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_IRIDESCENCE_THICKNESSMAP
+        vIridescenceThicknessMapUv = ( iridescenceThicknessMapTransform * vec3( IRIDESCENCE_THICKNESSMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_SHEEN_COLORMAP
+        vSheenColorMapUv = ( sheenColorMapTransform * vec3( SHEEN_COLORMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_SHEEN_ROUGHNESSMAP
+        vSheenRoughnessMapUv = ( sheenRoughnessMapTransform * vec3( SHEEN_ROUGHNESSMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_SPECULARMAP
+        vSpecularMapUv = ( specularMapTransform * vec3( SPECULARMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_SPECULAR_COLORMAP
+        vSpecularColorMapUv = ( specularColorMapTransform * vec3( SPECULAR_COLORMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_SPECULAR_INTENSITYMAP
+        vSpecularIntensityMapUv = ( specularIntensityMapTransform * vec3( SPECULAR_INTENSITYMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_TRANSMISSIONMAP
+        vTransmissionMapUv = ( transmissionMapTransform * vec3( TRANSMISSIONMAP_UV, 1 ) ).xy;
+      #endif
+      #ifdef USE_THICKNESSMAP
+        vThicknessMapUv = ( thicknessMapTransform * vec3( THICKNESSMAP_UV, 1 ) ).xy;
+      #endif
+    `,
     worldpos_vertex:
       "#if defined( USE_ENVMAP ) || defined( DISTANCE ) || defined ( USE_SHADOWMAP ) || defined ( USE_TRANSMISSION ) || NUM_SPOT_LIGHT_COORDS > 0\n\tvec4 worldPosition = vec4( transformed, 1.0 );\n\t#ifdef USE_INSTANCING\n\t\tworldPosition = instanceMatrix * worldPosition;\n\t#endif\n\tworldPosition = modelMatrix * worldPosition;\n#endif",
     background_vert:
@@ -13516,7 +13684,7 @@ class WebGLRenderer {
               P.setValue(Pe, "modelMatrix", s.matrixWorld),
               n.isShaderMaterial || n.isRawShaderMaterial)
             ) {
-              const e = n.uniformsGroups;
+              const e = n.uniformsGroups || [];
               for (let t = 0, i = e.length; t < i; t++)
                 if (ae.isWebGL2) {
                   const i = e[t];
@@ -29441,7 +29609,7 @@ function colorToArr3(e) {
   const t = M_(e).unitArray();
   return [t[0], t[1], t[2]];
 }
-const P_ = Object.freeze(
+const commonUtils = Object.freeze(
     Object.defineProperty(
       {
         __proto__: null,
@@ -29461,52 +29629,6 @@ const P_ = Object.freeze(
     selectedObjectColorMode: { value: 0 },
   },
   F_ = { keepSize: { value: !1 }, zoomUnits: { value: 1 } },
-  N_ = (e, t = []) => {
-    for (let i of t)
-      Object.defineProperty(e, i, {
-        get: function () {
-          return this.uniforms[i].value;
-        },
-        set: function (e) {
-          this.uniforms[i].value = e;
-        },
-      });
-  },
-  B_ = (e, t = []) => {
-    for (let i of t)
-      Object.defineProperty(e, i, {
-        get: function () {
-          return this.uniforms[i].value;
-        },
-        set: function (e) {
-          this.uniforms[i].value = colorToVec4(e);
-        },
-      });
-  },
-  k_ = (e, t = []) => {
-    for (let [i, n, s] of t)
-      Object.defineProperty(e, i, {
-        get: function () {
-          return this.uniforms[n].value;
-        },
-        set: function (e) {
-          this.uniforms[n].value = s ? s(e) : e;
-        },
-      });
-  },
-  O_ = (e, t = []) => {
-    for (let [i, n] of t)
-      Object.defineProperty(e, i, {
-        get: function () {
-          return !!this.defines[n];
-        },
-        set: function (e) {
-          this[i] !== e &&
-            (e ? (this.defines[n] = !0) : delete this.defines[n],
-            (this.needsUpdate = !0));
-        },
-      });
-  },
   U_ = (e) => {
     Object.defineProperties(e, {
       selectedObjectColor: {
@@ -29643,20 +29765,313 @@ const P_ = Object.freeze(
 class H_ extends ShaderMaterial {
   constructor(e) {
     super(),
-      (this.vertexShader =
-        "#define GLSLIFY 1\nvarying vec2 vUv;\n\nvoid main() {\n\n    vUv = uv;\n\n    gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n\n}"),
-      (this.fragmentShader =
-        'precision highp sampler2D;\n#define GLSLIFY 1\nvarying vec2 vUv;\nuniform sampler2D tDepth;\nuniform sampler2D tNormal;\nuniform sampler2D tMetalness;\nuniform sampler2D tDiffuse;\n\n#if defined(MVT_SSR_USE_ENHANCEMENT_MAP)\nuniform sampler2D tEnhancement;\nuniform vec2 tEnhancementScale;\nuniform mat4 mvt_viewInverseMatrix;\nuniform mat3 mvt_normalInverseMatrix;\n#endif\n\nuniform float cameraRange;\nuniform vec2 resolution;\nuniform float opacity;\nuniform float cameraNear;\nuniform float cameraFar;\nuniform float maxDistance;\nuniform float thickness;\nuniform mat4 cameraProjectionMatrix;\nuniform mat4 cameraInverseProjectionMatrix;\nuniform float threshold; // 控制反射最低阈值，低于此致的不计算，可提高性能\n\n#include <packing>\nfloat pointToLineDistance(vec3 x0, vec3 x1, vec3 x2) {\n    //x0: point, x1: linePointA, x2: linePointB\n    //https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html\n    return length(cross(x0 - x1, x0 - x2)) / length(x2 - x1);\n}\nfloat pointPlaneDistance(vec3 point, vec3 planePoint, vec3 planeNormal) {\n    // https://mathworld.wolfram.com/Point-PlaneDistance.html\n    //// https://en.wikipedia.org/wiki/Plane_(geometry)\n    //// http://paulbourke.net/geometry/pointlineplane/\n    float a = planeNormal.x, b = planeNormal.y, c = planeNormal.z;\n    float x0 = point.x, y0 = point.y, z0 = point.z;\n    float x = planePoint.x, y = planePoint.y, z = planePoint.z;\n    float d = -(a * x + b * y + c * z);\n    float distance = (a * x0 + b * y0 + c * z0 + d) / sqrt(a * a + b * b + c * c);\n    return distance;\n}\n// https://stackoverflow.com/questions/40373184/world-space-position-from-logarithmic-depth-buffer\nfloat linearize_depth(in float depth) {\n    float a = cameraFar / (cameraFar - cameraNear);\n    float b = cameraFar * cameraNear / (cameraNear - cameraFar);\n    return a + b / depth;\n}\n\nfloat reconstruct_depth(const in vec2 uv) {\n    float depth = texture2D(tDepth, uv).x;\n    return pow(2.0, depth * log2(cameraFar + 1.0)) - 1.0;\n}\n\nfloat getDepth(const in vec2 uv) {\n    #if defined( USE_LOGDEPTHBUF ) && defined( USE_LOGDEPTHBUF_EXT )\n    return linearize_depth(reconstruct_depth(uv)); //exp2(logDepth * 2.0 / logDepthBufFC) - 1.0;\n    #else\n    return texture2D(tDepth, uv).x;\n    #endif\n\n}\nfloat getViewZ(const in float depth) {\n    #ifdef PERSPECTIVE_CAMERA\n    return perspectiveDepthToViewZ(depth, cameraNear, cameraFar);\n    #else\n    return orthographicDepthToViewZ(depth, cameraNear, cameraFar);\n    #endif\n}\nvec3 getViewPosition(const in vec2 uv, const in float depth/*clip space*/, const in float clipW) {\n    vec4 clipPosition = vec4((vec3(uv, depth) - 0.5) * 2.0, 1.0);//ndc\n    clipPosition *= clipW; //clip\n    return (cameraInverseProjectionMatrix * clipPosition).xyz;//view\n}\n#if defined(MVT_SSR_USE_ENHANCEMENT_MAP)\nvec3 getWorldPositionFromDepth(float depth) {\n    float z = depth * 2.0 - 1.0;\n    vec4 clipSpacePosition = vec4(vUv * 2.0 - 1.0, z, 1.0);\n    vec4 viewSpacePosition = cameraInverseProjectionMatrix * clipSpacePosition;\n    vec4 worldSpacePosition = mvt_viewInverseMatrix * viewSpacePosition;\n    return worldSpacePosition.xyz / worldSpacePosition.w;\n}\n#endif\nvec3 getViewNormal(const in vec2 uv) {\n    return unpackRGBToNormal(texture2D(tNormal, uv).xyz);\n}\nvec2 viewPositionToXY(vec3 viewPosition) {\n    vec2 xy;\n    vec4 clip = cameraProjectionMatrix * vec4(viewPosition, 1);\n    xy = clip.xy;//clip\n    float clipW = clip.w;\n    xy /= clipW;//NDC\n    xy = (xy + 1.) / 2.;//uv\n    xy *= resolution;//screen\n    return xy;\n}\nvoid main() {\n\n    gl_FragColor = texture2D(tDiffuse, vUv);\n   \n    vec3 sampleNormal = texture2D(tNormal, vUv).xyz;\n    if (length(sampleNormal) < 0.9) {\n        return;\n    }\n\n    vec3 viewNormal = unpackRGBToNormal(sampleNormal);\n    float depth = getDepth(vUv);\n    #ifdef SELECTIVE\n    // 完全没反射的表面直接剔除\n    float intensity = texture2D(tMetalness, vUv).x;\n\n    #if defined(MVT_SSR_USE_ENHANCEMENT_MAP)\n        float dirAlpha = dot(viewNormal * mvt_normalInverseMatrix, vec3(0.0, 0.0, 1.0));\n        if (dirAlpha > 0.5) {\n            vec3 worldSpacePosition = getWorldPositionFromDepth(depth);\n            vec2 enhancementUv = vec2(mod(worldSpacePosition.x, tEnhancementScale.x) / tEnhancementScale.x, \n                    mod(worldSpacePosition.y, tEnhancementScale.y) / tEnhancementScale.y);\n            float enhancement = texture2D(tEnhancement, enhancementUv).x;\n            intensity += (1.0 - enhancement);\n        }\n        // gl_FragColor = vec4(enhancement, 0.0, 0.0, 1.0);\n        // return;\n    #endif\n\n         \n    if(intensity < threshold)\n        return;\n    intensity -= threshold;\n    intensity *= 1.0 / (1.0 - threshold);\n    #endif\n\n    \n    float viewZ = getViewZ(depth);\n    // z值已经超过相机远端距离\n    if(-viewZ >= cameraFar)\n        return;\n\n    float clipW = cameraProjectionMatrix[2][3] * viewZ + cameraProjectionMatrix[3][3];\n    // 相机视图下的当前片元坐标\n    vec3 viewPosition = getViewPosition(vUv, depth, clipW);\n\n    // 起点的屏幕坐标\n    vec2 d0 = gl_FragCoord.xy;\n    vec2 d1;\n\n    #ifdef PERSPECTIVE_CAMERA\n    // 入射光方向，相机在原点，方向即为坐标的单位向量\n    vec3 viewIncidentDir = normalize(viewPosition);\n    // 反射光方向\n    vec3 viewReflectDir = reflect(viewIncidentDir, viewNormal);\n    #else\n    vec3 viewIncidentDir = vec3(0, 0, -1);\n    vec3 viewReflectDir = reflect(viewIncidentDir, viewNormal);\n    #endif\n\n    // 反射光线最长距离由输入的最大反射距离和入射角决定\n    float maxReflectRayLen = maxDistance / dot(-viewIncidentDir, viewNormal);\n    // dot(a,b)==length(a)*length(b)*cos(theta) // https://www.mathsisfun.com/algebra/vectors-dot-product.html\n    // if(a.isNormalized&&b.isNormalized) dot(a,b)==cos(theta)\n    // maxDistance/maxReflectRayLen=cos(theta)\n    // maxDistance/maxReflectRayLen==dot(a,b)\n    // maxReflectRayLen==maxDistance/dot(a,b)\n\n    // 反射最远距离下的坐标点\n    vec3 d1viewPosition = viewPosition + viewReflectDir * maxReflectRayLen;\n    #ifdef PERSPECTIVE_CAMERA\n    if(d1viewPosition.z > -cameraNear) {\n            //https://tutorial.math.lamar.edu/Classes/CalcIII/EqnsOfLines.aspx\n        // 应该是处理反射点溢出相机视野外的情况\n        float t = (-cameraNear - viewPosition.z) / viewReflectDir.z;\n        d1viewPosition = viewPosition + viewReflectDir * t;\n    }\n    #endif\n    // 反射最远点在屏幕上的位置\n    d1 = viewPositionToXY(d1viewPosition);\n\n    // 屏幕像素距离\n    float totalLen = length(d1 - d0);\n    float xLen = d1.x - d0.x;\n    float yLen = d1.y - d0.y;\n    // 最大步数取xy方向较大的一个方向，每次步进一个像素\n    float totalStep = max(abs(xLen), abs(yLen));\n    // x方向每次步进的大小\n    float xSpan = xLen / totalStep;\n    // y方向每次步进的大小\n    float ySpan = yLen / totalStep;\n    // 步进次数最大是屏幕对角线距离（应该是横向或者纵向的最大值），实际次数要远小于这个\n    for(float i = 0.; i < float(MAX_STEP); i += 4.0) {\n        if(i >= totalStep)\n            break;\n        // march到的当前屏幕像素\n        vec2 xy = vec2(d0.x + i * xSpan, d0.y + i * ySpan);\n        // 跑到屏幕外march失败\n        if(xy.x < 0. || xy.x > resolution.x || xy.y < 0. || xy.y > resolution.y)\n            break;\n        // 当前百分比\n        float s = length(xy - d0) / totalLen;\n        // 当前uv\n        vec2 uv = xy / resolution;\n        // 计算当前点的各项参数，和一开始一样\n        float d = getDepth(uv);\n        float vZ = getViewZ(d);\n        // gl_FragColor = vec4(-vZ / 1000., 0.0, 0.0, 1.0);\n        // return;\n        if(-vZ >= cameraFar)\n            continue;\n        float cW = cameraProjectionMatrix[2][3] * vZ + cameraProjectionMatrix[3][3];\n        // 得到当前点的viewposition\n        vec3 vP = getViewPosition(uv, d, cW);\n\n        // 得到当前反射线的z\n        #ifdef PERSPECTIVE_CAMERA\n            // https://comp.nus.edu.sg/~lowkl/publications/lowk_persp_interp_techrep.pdf\n        float recipVPZ = 1. / viewPosition.z;\n        float viewReflectRayZ = 1. / (recipVPZ + s * (1. / d1viewPosition.z - recipVPZ));\n        #else\n        float viewReflectRayZ = viewPosition.z + s * (d1viewPosition.z - viewPosition.z);\n        #endif\n\n        // if(viewReflectRayZ>vZ) continue; // will cause "npm run make-screenshot webgl_postprocessing_ssr" high probability hang.\n        // https://github.com/mrdoob/three.js/pull/21539#issuecomment-821061164\n        // 反射线的z小于当前点的z,否则就是被遮挡住了\n        if(viewReflectRayZ <= vZ) {\n\n            bool hit;\n            #ifdef INFINITE_THICK\n            hit = true;\n            #else\n            // 点到射线的距离\n            float away = pointToLineDistance(vP, viewPosition, d1viewPosition);\n\n            // minThickness没看懂，和横向邻接点的viewx差值，大约代表了此处一个像素和实际距离的比例，乘3.0？\n            float minThickness;\n            vec2 xyNeighbor = xy;\n            xyNeighbor.x += 1.;\n            vec2 uvNeighbor = xyNeighbor / resolution;\n            vec3 vPNeighbor = getViewPosition(uvNeighbor, d, cW);\n            minThickness = vPNeighbor.x - vP.x;\n            minThickness *= 3.;\n            float tk = max(minThickness, thickness);\n            // 当距离小于阈值时才算是真正相交\n            hit = away <= tk;\n            #endif\n\n            if(hit) {\n                vec3 vN = getViewNormal(uv);\n                // 相交到物体的反面了，march无效\n                if(dot(viewReflectDir, vN) >= 0.)\n                    continue;\n                float distance = pointPlaneDistance(vP, viewPosition, viewNormal);\n                // march距离超过最大\n                if(distance > maxDistance)\n                    break;\n                float op = opacity;\n                // 随着距离减弱反射，防止反射突然消失\n                #ifdef DISTANCE_ATTENUATION\n                float ratio = 1. - (distance / maxDistance);\n                float attenuation = ratio * ratio;\n                op = opacity * attenuation;\n                #endif\n                // 菲涅尔反射定律，与视野角度偏离越大，颜色权重越大\n                #ifdef FRESNEL\n                float fresnelCoe = (dot(viewIncidentDir, viewReflectDir) + 1.) / 2.;\n                op *= fresnelCoe;\n                #endif\n                // 读取反射颜色赋给当前片元\n                gl_FragColor = texture2D(tDiffuse, vUv);\n                vec4 reflectColor = texture2D(tDiffuse, uv);\n                reflectColor.a = op;\n                #ifdef SELECTIVE\n                reflectColor.a *= intensity;\n                #endif\n                gl_FragColor.rgb = mix(gl_FragColor.rgb, reflectColor.rgb, reflectColor.a);\n                // gl_FragColor = vec4(1.0, 0, 0, 1.0);\n                return;\n                \n                // break;\n            }\n        }\n    }\n    // gl_FragColor = texture2D(tDiffuse, vUv);\n}'),
-      (this.uniforms = In.clone(Q_)),
-      (this.defines = {
+      this.vertexShader = `
+        #define GLSLIFY 1
+        varying vec2 vUv;
+
+        void main() {
+
+          vUv = uv;
+
+          gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+        }`;
+
+      this.fragmentShader = `
+        precision highp sampler2D;
+        #define GLSLIFY 1
+        varying vec2 vUv;
+        uniform sampler2D tDepth;
+        uniform sampler2D tNormal;
+        uniform sampler2D tMetalness;
+        uniform sampler2D tDiffuse;
+
+        #if defined(MVT_SSR_USE_ENHANCEMENT_MAP)
+        uniform sampler2D tEnhancement;
+        uniform vec2 tEnhancementScale;
+        uniform mat4 mvt_viewInverseMatrix;
+        uniform mat3 mvt_normalInverseMatrix;
+        #endif
+
+        uniform float cameraRange;
+        uniform vec2 resolution;
+        uniform float opacity;
+        uniform float cameraNear;
+        uniform float cameraFar;
+        uniform float maxDistance;
+        uniform float thickness;
+        uniform mat4 cameraProjectionMatrix;
+        uniform mat4 cameraInverseProjectionMatrix;
+        uniform float threshold; // 控制反射最低阈值，低于此致的不计算，可提高性能
+
+        #include <packing>
+        float pointToLineDistance(vec3 x0, vec3 x1, vec3 x2) {
+            //x0: point, x1: linePointA, x2: linePointB
+            //https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
+            return length(cross(x0 - x1, x0 - x2)) / length(x2 - x1);
+        }
+        float pointPlaneDistance(vec3 point, vec3 planePoint, vec3 planeNormal) {
+            // https://mathworld.wolfram.com/Point-PlaneDistance.html
+            //// https://en.wikipedia.org/wiki/Plane_(geometry)
+            //// http://paulbourke.net/geometry/pointlineplane/
+            float a = planeNormal.x, b = planeNormal.y, c = planeNormal.z;
+            float x0 = point.x, y0 = point.y, z0 = point.z;
+            float x = planePoint.x, y = planePoint.y, z = planePoint.z;
+            float d = -(a * x + b * y + c * z);
+            float distance = (a * x0 + b * y0 + c * z0 + d) / sqrt(a * a + b * b + c * c);
+            return distance;
+        }
+        // https://stackoverflow.com/questions/40373184/world-space-position-from-logarithmic-depth-buffer
+        float linearize_depth(in float depth) {
+            float a = cameraFar / (cameraFar - cameraNear);
+            float b = cameraFar * cameraNear / (cameraNear - cameraFar);
+            return a + b / depth;
+        }
+
+        float reconstruct_depth(const in vec2 uv) {
+            float depth = texture2D(tDepth, uv).x;
+            return pow(2.0, depth * log2(cameraFar + 1.0)) - 1.0;
+        }
+
+        float getDepth(const in vec2 uv) {
+            #if defined( USE_LOGDEPTHBUF ) && defined( USE_LOGDEPTHBUF_EXT )
+            return linearize_depth(reconstruct_depth(uv)); //exp2(logDepth * 2.0 / logDepthBufFC) - 1.0;
+            #else
+            return texture2D(tDepth, uv).x;
+            #endif
+
+        }
+        float getViewZ(const in float depth) {
+            #ifdef PERSPECTIVE_CAMERA
+            return perspectiveDepthToViewZ(depth, cameraNear, cameraFar);
+            #else
+            return orthographicDepthToViewZ(depth, cameraNear, cameraFar);
+            #endif
+        }
+        vec3 getViewPosition(const in vec2 uv, const in float depth/*clip space*/, const in float clipW) {
+            vec4 clipPosition = vec4((vec3(uv, depth) - 0.5) * 2.0, 1.0);//ndc
+            clipPosition *= clipW; //clip
+            return (cameraInverseProjectionMatrix * clipPosition).xyz;//view
+        }
+        #if defined(MVT_SSR_USE_ENHANCEMENT_MAP)
+        vec3 getWorldPositionFromDepth(float depth) {
+            float z = depth * 2.0 - 1.0;
+            vec4 clipSpacePosition = vec4(vUv * 2.0 - 1.0, z, 1.0);
+            vec4 viewSpacePosition = cameraInverseProjectionMatrix * clipSpacePosition;
+            vec4 worldSpacePosition = mvt_viewInverseMatrix * viewSpacePosition;
+            return worldSpacePosition.xyz / worldSpacePosition.w;
+        }
+        #endif
+        vec3 getViewNormal(const in vec2 uv) {
+            return unpackRGBToNormal(texture2D(tNormal, uv).xyz);
+        }
+        vec2 viewPositionToXY(vec3 viewPosition) {
+            vec2 xy;
+            vec4 clip = cameraProjectionMatrix * vec4(viewPosition, 1);
+            xy = clip.xy;//clip
+            float clipW = clip.w;
+            xy /= clipW;//NDC
+            xy = (xy + 1.) / 2.;//uv
+            xy *= resolution;//screen
+            return xy;
+        }
+        void main() {
+
+            gl_FragColor = texture2D(tDiffuse, vUv);
+          
+            vec3 sampleNormal = texture2D(tNormal, vUv).xyz;
+            if (length(sampleNormal) < 0.9) {
+                return;
+            }
+
+            vec3 viewNormal = unpackRGBToNormal(sampleNormal);
+            float depth = getDepth(vUv);
+            #ifdef SELECTIVE
+            // 完全没反射的表面直接剔除
+            float intensity = texture2D(tMetalness, vUv).x;
+
+            #if defined(MVT_SSR_USE_ENHANCEMENT_MAP)
+                float dirAlpha = dot(viewNormal * mvt_normalInverseMatrix, vec3(0.0, 0.0, 1.0));
+                if (dirAlpha > 0.5) {
+                    vec3 worldSpacePosition = getWorldPositionFromDepth(depth);
+                    vec2 enhancementUv = vec2(mod(worldSpacePosition.x, tEnhancementScale.x) / tEnhancementScale.x, 
+                            mod(worldSpacePosition.y, tEnhancementScale.y) / tEnhancementScale.y);
+                    float enhancement = texture2D(tEnhancement, enhancementUv).x;
+                    intensity += (1.0 - enhancement);
+                }
+                // gl_FragColor = vec4(enhancement, 0.0, 0.0, 1.0);
+                // return;
+            #endif
+
+                
+            if(intensity < threshold)
+                return;
+            intensity -= threshold;
+            intensity *= 1.0 / (1.0 - threshold);
+            #endif
+
+            
+            float viewZ = getViewZ(depth);
+            // z值已经超过相机远端距离
+            if(-viewZ >= cameraFar)
+                return;
+
+            float clipW = cameraProjectionMatrix[2][3] * viewZ + cameraProjectionMatrix[3][3];
+            // 相机视图下的当前片元坐标
+            vec3 viewPosition = getViewPosition(vUv, depth, clipW);
+
+            // 起点的屏幕坐标
+            vec2 d0 = gl_FragCoord.xy;
+            vec2 d1;
+
+            #ifdef PERSPECTIVE_CAMERA
+            // 入射光方向，相机在原点，方向即为坐标的单位向量
+            vec3 viewIncidentDir = normalize(viewPosition);
+            // 反射光方向
+            vec3 viewReflectDir = reflect(viewIncidentDir, viewNormal);
+            #else
+            vec3 viewIncidentDir = vec3(0, 0, -1);
+            vec3 viewReflectDir = reflect(viewIncidentDir, viewNormal);
+            #endif
+
+            // 反射光线最长距离由输入的最大反射距离和入射角决定
+            float maxReflectRayLen = maxDistance / dot(-viewIncidentDir, viewNormal);
+            // dot(a,b)==length(a)*length(b)*cos(theta) // https://www.mathsisfun.com/algebra/vectors-dot-product.html
+            // if(a.isNormalized&&b.isNormalized) dot(a,b)==cos(theta)
+            // maxDistance/maxReflectRayLen=cos(theta)
+            // maxDistance/maxReflectRayLen==dot(a,b)
+            // maxReflectRayLen==maxDistance/dot(a,b)
+
+            // 反射最远距离下的坐标点
+            vec3 d1viewPosition = viewPosition + viewReflectDir * maxReflectRayLen;
+            #ifdef PERSPECTIVE_CAMERA
+            if(d1viewPosition.z > -cameraNear) {
+                    //https://tutorial.math.lamar.edu/Classes/CalcIII/EqnsOfLines.aspx
+                // 应该是处理反射点溢出相机视野外的情况
+                float t = (-cameraNear - viewPosition.z) / viewReflectDir.z;
+                d1viewPosition = viewPosition + viewReflectDir * t;
+            }
+            #endif
+            // 反射最远点在屏幕上的位置
+            d1 = viewPositionToXY(d1viewPosition);
+
+            // 屏幕像素距离
+            float totalLen = length(d1 - d0);
+            float xLen = d1.x - d0.x;
+            float yLen = d1.y - d0.y;
+            // 最大步数取xy方向较大的一个方向，每次步进一个像素
+            float totalStep = max(abs(xLen), abs(yLen));
+            // x方向每次步进的大小
+            float xSpan = xLen / totalStep;
+            // y方向每次步进的大小
+            float ySpan = yLen / totalStep;
+            // 步进次数最大是屏幕对角线距离（应该是横向或者纵向的最大值），实际次数要远小于这个
+            for(float i = 0.; i < float(MAX_STEP); i += 4.0) {
+                if(i >= totalStep)
+                    break;
+                // march到的当前屏幕像素
+                vec2 xy = vec2(d0.x + i * xSpan, d0.y + i * ySpan);
+                // 跑到屏幕外march失败
+                if(xy.x < 0. || xy.x > resolution.x || xy.y < 0. || xy.y > resolution.y)
+                    break;
+                // 当前百分比
+                float s = length(xy - d0) / totalLen;
+                // 当前uv
+                vec2 uv = xy / resolution;
+                // 计算当前点的各项参数，和一开始一样
+                float d = getDepth(uv);
+                float vZ = getViewZ(d);
+                // gl_FragColor = vec4(-vZ / 1000., 0.0, 0.0, 1.0);
+                // return;
+                if(-vZ >= cameraFar)
+                    continue;
+                float cW = cameraProjectionMatrix[2][3] * vZ + cameraProjectionMatrix[3][3];
+                // 得到当前点的viewposition
+                vec3 vP = getViewPosition(uv, d, cW);
+
+                // 得到当前反射线的z
+                #ifdef PERSPECTIVE_CAMERA
+                    // https://comp.nus.edu.sg/~lowkl/publications/lowk_persp_interp_techrep.pdf
+                float recipVPZ = 1. / viewPosition.z;
+                float viewReflectRayZ = 1. / (recipVPZ + s * (1. / d1viewPosition.z - recipVPZ));
+                #else
+                float viewReflectRayZ = viewPosition.z + s * (d1viewPosition.z - viewPosition.z);
+                #endif
+
+                // if(viewReflectRayZ>vZ) continue; // will cause "npm run make-screenshot webgl_postprocessing_ssr" high probability hang.
+                // https://github.com/mrdoob/three.js/pull/21539#issuecomment-821061164
+                // 反射线的z小于当前点的z,否则就是被遮挡住了
+                if(viewReflectRayZ <= vZ) {
+
+                    bool hit;
+                    #ifdef INFINITE_THICK
+                    hit = true;
+                    #else
+                    // 点到射线的距离
+                    float away = pointToLineDistance(vP, viewPosition, d1viewPosition);
+
+                    // minThickness没看懂，和横向邻接点的viewx差值，大约代表了此处一个像素和实际距离的比例，乘3.0？
+                    float minThickness;
+                    vec2 xyNeighbor = xy;
+                    xyNeighbor.x += 1.;
+                    vec2 uvNeighbor = xyNeighbor / resolution;
+                    vec3 vPNeighbor = getViewPosition(uvNeighbor, d, cW);
+                    minThickness = vPNeighbor.x - vP.x;
+                    minThickness *= 3.;
+                    float tk = max(minThickness, thickness);
+                    // 当距离小于阈值时才算是真正相交
+                    hit = away <= tk;
+                    #endif
+
+                    if(hit) {
+                        vec3 vN = getViewNormal(uv);
+                        // 相交到物体的反面了，march无效
+                        if(dot(viewReflectDir, vN) >= 0.)
+                            continue;
+                        float distance = pointPlaneDistance(vP, viewPosition, viewNormal);
+                        // march距离超过最大
+                        if(distance > maxDistance)
+                            break;
+                        float op = opacity;
+                        // 随着距离减弱反射，防止反射突然消失
+                        #ifdef DISTANCE_ATTENUATION
+                        float ratio = 1. - (distance / maxDistance);
+                        float attenuation = ratio * ratio;
+                        op = opacity * attenuation;
+                        #endif
+                        // 菲涅尔反射定律，与视野角度偏离越大，颜色权重越大
+                        #ifdef FRESNEL
+                        float fresnelCoe = (dot(viewIncidentDir, viewReflectDir) + 1.) / 2.;
+                        op *= fresnelCoe;
+                        #endif
+                        // 读取反射颜色赋给当前片元
+                        gl_FragColor = texture2D(tDiffuse, vUv);
+                        vec4 reflectColor = texture2D(tDiffuse, uv);
+                        reflectColor.a = op;
+                        #ifdef SELECTIVE
+                        reflectColor.a *= intensity;
+                        #endif
+                        gl_FragColor.rgb = mix(gl_FragColor.rgb, reflectColor.rgb, reflectColor.a);
+                        // gl_FragColor = vec4(1.0, 0, 0, 1.0);
+                        return;
+                        
+                        // break;
+                    }
+                }
+            }
+            // gl_FragColor = texture2D(tDiffuse, vUv);
+        }`;
+
+      this.uniforms = In.clone(Q_);
+      this.defines = {
         MAX_STEP: 0,
         PERSPECTIVE_CAMERA: !0,
         DISTANCE_ATTENUATION: !0,
         FRESNEL: !0,
         INFINITE_THICK: !1,
         SELECTIVE: !1,
-      }),
-      N_(this, [
+      };
+      defineUniformProxy(this, [
         "tDiffuse",
         "tNormal",
         "tDepth",
@@ -29667,8 +30082,8 @@ class H_ extends ShaderMaterial {
         "thickness",
         "opacity",
         "tEnhancementScale",
-      ]),
-      O_(this, []),
+      ]);
+      defineAutoUpdatePropHook(this, []),
       Object.defineProperties(this, {
         tEnhancement: {
           get: function () {
@@ -29682,7 +30097,7 @@ class H_ extends ShaderMaterial {
                 delete this.defines.MVT_SSR_USE_ENHANCEMENT_MAP);
           },
         },
-      }),
+      });
       this.setValues(e);
   }
   dispose() {
@@ -29699,55 +30114,57 @@ class H_ extends ShaderMaterial {
 class j_ extends ug {
   constructor() {
     super();
-    const e = (this.material = new H_());
-    (e.defines.DISTANCE_ATTENUATION = !0),
-      (e.defines.SELECTIVE = !0),
-      (this.fsQuad = new fg(null)),
-      (this.needsSwap = !0),
-      (this.needsMetallicRoughTexture = !0),
-      (this.needsNormalTexture = !0),
-      (this.needsDepthTexture = !0);
+    const mat = (this.material = new H_());
+    mat.defines.DISTANCE_ATTENUATION = !0;
+    mat.defines.SELECTIVE = !0;
+    this.fsQuad = new fg(null);
+    this.needsSwap = !0;
+    this.needsMetallicRoughTexture = !0;
+    this.needsNormalTexture = !0;
+    this.needsDepthTexture = !0;
   }
   render(e, t, i) {
-    const n = this.rendering,
-      s = n.main.sceneRendering,
-      r = n.camera,
-      a = this.material;
-    (a.uniforms.tDiffuse.value = i.texture),
-      (a.uniforms.tDepth.value = s.depthTexture),
-      (a.uniforms.tNormal.value = s.normalTexture),
-      (a.uniforms.tMetalness.value = s.metallicRoughTexture);
+    const rendering = this.rendering;
+    const sceneRendering = rendering.main.sceneRendering;
+    const camera = rendering.camera;
+    const mat = this.material;
+
+    mat.uniforms.tDiffuse.value = i.texture;
+    mat.uniforms.tDepth.value = sceneRendering.depthTexture;
+    mat.uniforms.tNormal.value = sceneRendering.normalTexture;
+    mat.uniforms.tMetalness.value = sceneRendering.metallicRoughTexture;
+
     const o = new Vector2(i.width, i.height);
-    (a.uniforms.resolution.value = o),
-      (a.defines.MAX_STEP = Math.min(512, Math.sqrt(o.x * o.x + o.y * o.y))),
-      a.uniforms.cameraProjectionMatrix.value.copy(r.projectionMatrix),
-      a.uniforms.cameraInverseProjectionMatrix.value.copy(
-        r.projectionMatrixInverse
-      ),
-      a.uniforms.mvt_viewInverseMatrix.value.copy(r.matrixWorld),
-      a.uniforms.mvt_normalInverseMatrix.value.getNormalMatrix(
-        r.matrixWorldInverse
-      ),
-      (a.uniforms.cameraNear.value = r.near),
-      (a.uniforms.cameraFar.value = r.far),
-      (this.fsQuad.material = a),
-      e.setRenderTarget(this.renderToScreen ? null : t),
-      e.clear(),
-      this.fsQuad.render(e);
+    mat.uniforms.resolution.value = o;
+    mat.defines.MAX_STEP = Math.min(512, Math.sqrt(o.x * o.x + o.y * o.y));
+    mat.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
+    mat.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
+    mat.uniforms.mvt_viewInverseMatrix.value.copy(camera.matrixWorld);
+    mat.uniforms.mvt_normalInverseMatrix.value.getNormalMatrix(camera.matrixWorldInverse);
+    mat.uniforms.cameraNear.value = camera.near;
+    mat.uniforms.cameraFar.value = camera.far;
+
+    this.fsQuad.material = mat;
+
+    e.setRenderTarget(this.renderToScreen ? null : t);
+    e.clear();
+
+    this.fsQuad.render(e);
   }
   dispose() {
     this.material.dispose(), this.fsQuad.dispose();
   }
 }
+
 class W_ extends Tg {
   constructor(e, t) {
     super(e, t),
-      publicField(this, "name", "reflection"),
-      publicField(this, "_method", "ssr"),
-      publicField(this, "_lastMethod", "ssr"),
-      publicField(this, "_lastEnabled", !1),
-      (this.enabled = t.enabled),
-      (this._method = t.method);
+      publicField(this, "name", "reflection");
+      publicField(this, "_method", "ssr");
+      publicField(this, "_lastMethod", "ssr");
+      publicField(this, "_lastEnabled", !1);
+      this.enabled = t.enabled;
+      this._method = t.method;
   }
   beginFrame() {
     this._lastEnabled === this.enabled
@@ -29787,22 +30204,23 @@ class W_ extends Tg {
     this._method = e;
   }
 }
+
 class q_ {
   constructor(e, t) {
-    publicField(this, "_features", []),
-      (this._rendering = e),
-      (this._bloom = new Pg(this._rendering)),
-      this._features.push(this._bloom),
-      (this._antialias = new kg(this._rendering, t.antialias)),
-      this._features.push(this._antialias),
-      (this._ao = new Qg(this._rendering, t.ao)),
-      this._features.push(this._ao),
-      (this._reflection = new W_(this._rendering, t.reflection)),
-      this._features.push(this._reflection),
-      (this._bufferView = new Og(this._rendering)),
-      this._features.push(this._bufferView),
-      (this._stats = new Lg(this._rendering)),
-      this._features.push(this._stats);
+    publicField(this, "_features", []);
+    this._rendering = e;
+    this._bloom = new Pg(this._rendering);
+    this._features.push(this._bloom);
+    this._antialias = new kg(this._rendering, t.antialias);
+    this._features.push(this._antialias);
+    this._ao = new Qg(this._rendering, t.ao);
+    this._features.push(this._ao);
+    this._reflection = new W_(this._rendering, t.reflection);
+    this._features.push(this._reflection);
+    this._bufferView = new Og(this._rendering);
+    this._features.push(this._bufferView);
+    this._stats = new Lg(this._rendering);
+    this._features.push(this._stats);
   }
   beginFrame() {
     for (const e of this._features) e.beginFrame();
@@ -29814,12 +30232,14 @@ class q_ {
     for (const e of this._features) e.endFrame();
   }
   updateReqirements(e) {
-    for (const t of this._features)
-      t.enabled &&
-        (t.needsEmissiveTexture && (e.needsEmissiveTexture = !0),
-        t.needsNormalTexture && (e.needsNormalTexture = !0),
-        t.needsDepthTexture && (e.needsDepthTexture = !0),
-        t.needsMetallicRoughTexture && (e.needsMetallicRoughTexture = !0));
+    for (const t of this._features) {
+      if (t.enabled) {
+        t.needsEmissiveTexture && (e.needsEmissiveTexture = !0);
+        t.needsNormalTexture && (e.needsNormalTexture = !0);
+        t.needsDepthTexture && (e.needsDepthTexture = !0);
+        t.needsMetallicRoughTexture && (e.needsMetallicRoughTexture = !0);
+      }
+    }
   }
   get ao() {
     return this._ao;
@@ -29845,42 +30265,50 @@ class q_ {
 }
 class X_ {
   constructor(e, t) {
-    publicField(this, "_rendering"),
-      publicField(this, "_requirements"),
-      publicField(this, "_useMRT", !1),
-      publicField(this, "_lastUseMRT", null),
-      publicField(this, "_sceneRendering"),
-      publicField(this, "_features"),
-      publicField(this, "_postprocessings"),
-      (e._main = this),
-      (this._rendering = e),
-      (this._requirements = new _g(e)),
-      (this._features = new q_(e, t.features)),
-      (this._postprocessings = new bg(e)),
-      (e.postprocessings = this._postprocessings),
-      (e.features = this._features);
+    publicField(this, "_rendering");
+    publicField(this, "_requirements");
+    publicField(this, "_useMRT", !1);
+    publicField(this, "_lastUseMRT", null);
+    publicField(this, "_sceneRendering");
+    publicField(this, "_features");
+    publicField(this, "_postprocessings");
+    
+    e._main = this;
+    this._rendering = e;
+    this._requirements = new _g(e);
+    this._features = new q_(e, t.features);
+    this._postprocessings = new bg(e);
+    e.postprocessings = this._postprocessings;
+    e.features = this._features;
   }
   beginFrame() {
     const e = this._rendering;
     if (e.isUseMRTChanged || !this._sceneRendering) {
       let t = !0;
-      this._sceneRendering &&
-        ((t = this._sceneRendering.useFastEmissiveMethod),
-        this._sceneRendering.dispose()),
-        e.useMRT
-          ? (this._sceneRendering = new gg(this._rendering))
-          : (this._sceneRendering = new mg(this._rendering)),
-        (this._sceneRendering.useFastEmissiveMethod = t);
+
+      if (this._sceneRendering) {
+        t = this._sceneRendering.useFastEmissiveMethod;
+        this._sceneRendering.dispose();
+      }
+
+      if (e.useMRT) {
+        this._sceneRendering = new gg(this._rendering);
+      } else {
+        this._sceneRendering = new mg(this._rendering);
+      }
+      
+      this._sceneRendering.useFastEmissiveMethod = t;
     }
-    this._features.beginFrame(),
-      this._requirements.beginFrame(),
-      this._sceneRendering.beginFrame(),
-      this._postprocessings.beginFrame();
+    this._features.beginFrame();
+    this._requirements.beginFrame();
+    this._sceneRendering.beginFrame();
+    this._postprocessings.beginFrame();
   }
   render() {
     const e = this._sceneRendering,
       t = this._features,
       i = this._postprocessings;
+
     let n = null;
     i.validCount > 0 && (n = i.renderTarget1),
       (e.renderTarget = n),
@@ -29889,10 +30317,10 @@ class X_ {
       i.validCount > 0 && i.render();
   }
   endFrame() {
-    this._requirements.endFrame(),
-      this._features.endFrame(),
-      this._sceneRendering.endFrame(),
-      this._postprocessings.endFrame();
+    this._requirements.endFrame();
+    this._features.endFrame();
+    this._sceneRendering.endFrame();
+    this._postprocessings.endFrame();
   }
   setSize(e, t) {
     this._rendering;
@@ -30703,7 +31131,7 @@ class av extends ShaderMaterial {
         CUBEUV_TEXEL_HEIGHT: 0.000244140625,
         CUBEUV_MAX_MIP: "10.0",
       }),
-      N_(this, [
+      defineUniformProxy(this, [
         "tDiffuse",
         "tNormal",
         "tDepth",
@@ -34180,7 +34608,7 @@ class DefaultTextMaterial extends CommonShaderMaterial {
       Object.assign(this.uniforms, In.clone(yA)),
       U_(this),
       z_(this),
-      N_(this, [
+      defineUniformProxy(this, [
         "lineHeight",
         "pixelRatio",
         "map",
@@ -34194,11 +34622,11 @@ class DefaultTextMaterial extends CommonShaderMaterial {
         "opacity",
         "isEmissive",
       ]),
-      k_(this, [
+      defineUniformsCustomProxy(this, [
         ["flat", "uFlat"],
         ["rotateZ", "uRotateZ"],
       ]),
-      O_(this, [["vertexRotateZs", "MVT_USE_VERTEX_ROTATEZ"]]),
+      defineAutoUpdatePropHook(this, [["vertexRotateZs", "MVT_USE_VERTEX_ROTATEZ"]]),
       G_(this),
       (this.emissiveEnabled = !0),
       (this.emissive = [0, 0, 0]),
@@ -41411,7 +41839,7 @@ class Qb extends ShaderMaterial {
       (this.depthWrite = !1),
       (this.depthTest = !1),
       (this.envMap = null),
-      N_(this, ["isEmissive"]),
+      defineUniformProxy(this, ["isEmissive"]),
       Object.defineProperties(this, {
         map: {
           get: function () {
@@ -42243,7 +42671,7 @@ class oE extends ShaderMaterial {
       (this.depthWrite = !1),
       (this.depthTest = !1),
       (this.envMap = null),
-      N_(this, ["isEmissive"]);
+      defineUniformProxy(this, ["isEmissive"]);
   }
   get gradients() {
     return this.uniforms.gradients.value;
@@ -51303,9 +51731,9 @@ class Tw extends ShaderMaterial {
       (this.type = "ExtendMeshStandardMaterial"),
       (this.isMeshStandardMaterial = !0),
       (this.defines = { STANDARD: "" }),
-      (this.defineMaterialNormalProperties = N_),
-      (this.defineMaterialAliasProperties = k_),
-      N_(this, [
+      (this.defineMaterialNormalProperties = defineUniformProxy),
+      (this.defineMaterialAliasProperties = defineUniformsCustomProxy),
+      defineUniformProxy(this, [
         "roughness",
         "metalness",
         "map",
@@ -51321,7 +51749,7 @@ class Tw extends ShaderMaterial {
         "alphaMap",
         "envMap",
       ]),
-      k_(this, [["color", "diffuse"]]),
+      defineUniformsCustomProxy(this, [["color", "diffuse"]]),
       (this.uniforms = In.clone(In.merge([Yn.standard.uniforms, e.uniforms]))),
       (this.color = new Color(16777215)),
       (this.roughness = 1),
@@ -52609,7 +53037,7 @@ class CT extends CommonShaderMaterial {
         CUBEUV_TEXEL_HEIGHT: 0.000244140625,
         CUBEUV_MAX_MIP: "10.0",
       }),
-      N_(this, [
+      defineUniformProxy(this, [
         "sunColor",
         "waterColor",
         "reflectionColor",
@@ -52878,7 +53306,7 @@ class NT extends CommonShaderMaterial {
       (this.isTrafficLightMaterial = !0),
       (this.transparent = !0),
       Object.assign(this.uniforms, In.clone(FT)),
-      N_(this, [
+      defineUniformProxy(this, [
         "slotState0",
         "slotState1",
         "slotState2",
@@ -56951,12 +57379,13 @@ class Points extends GeoObject {
   }
 }
 
-const SimplePoint = makeSimplePoint(CommonShaderMaterial,
+const SimplePoint = makeSimplePoint(
+  CommonShaderMaterial,
   U_,
-  N_,
-  k_,
-  B_,
-  O_,
+  defineUniformProxy,
+  defineUniformsCustomProxy,
+  defineUniformsVec4Proxy,
+  defineAutoUpdatePropHook,
   G_,
   yl,
   Xn,
@@ -57251,7 +57680,7 @@ class LR extends PR {
       (this.side = 2),
       (this.depthWrite = !1),
       Object.assign(this.uniforms, In.clone(DR)),
-      N_(this, ["isEmissive", "elapsedTime"]),
+      defineUniformProxy(this, ["isEmissive", "elapsedTime"]),
       this.setValues(e);
   }
 }
@@ -57271,7 +57700,7 @@ class BR extends PR {
       publicField(this, "type", "InstancedFanMaterial"),
       publicField(this, "isInstancedFanMaterial", !0),
       (this.depthWrite = !1),
-      N_(this, ["speed", "isEmissive"]),
+      defineUniformProxy(this, ["speed", "isEmissive"]),
       "Fan" === e.type
         ? ((this.vertexShader =
             "#define GLSLIFY 1\n#include <common>\n\nattribute vec3 instancedPosition;\nattribute float instancedRandomFactor;\n\nuniform float height;\nuniform float size;\nuniform float elapsedTime;\nuniform float speed;\nuniform bool animationEffect;\nuniform float animationEffectPeriod;\n\nvarying vec2 vPosition;\nvarying float vEffectRatio;\n\n#include <mvt_animation_pars_vertex>\n#include <mvt_selective_pars_vertex>\n#include <mvt_keepsize_pars_vertex>\n#include <logdepthbuf_pars_vertex>\n#include <mvt_extra_vertex_utils>\n\nvoid main() {\n\n    #include <mvt_selective_vertex>\n    vPosition = position.xy;\n    vec3 transformed = vec3(position);\n\n    float elapsedTime = elapsedTime * speed * .5;\n    #include <mvt_animation_vertex>\n\n    transformed *= size;\n\n    // vec4 worldPosition = (modelMatrix * vec4(transformed, 1.0));\n    float pixelSize = getPixelSize(vec3(modelViewMatrix * instanceMatrix * vec4(0., 0., 0., 1.)));\n    if (keepSize) {\n        transformed *= pixelSize;\n    }\n\n    vec4 worldPosition = modelMatrix * instanceMatrix * vec4(transformed, 1.0);\n    worldPosition.z += height;\n\n    // gl_Position = projectionMatrix * modelViewMatrix * \n    //     vec4(instancedPosition + transformed, 1.0);\n    gl_Position = projectionMatrix * viewMatrix * worldPosition;\n    #include <logdepthbuf_vertex>\n}"),
@@ -57279,14 +57708,14 @@ class BR extends PR {
             "#define GLSLIFY 1\n// #include <common>\n\nuniform vec4 color;\nuniform float opacity;\nuniform bool animationEffect;\n\nvarying float vEffectRatio;\nvarying vec2 vPosition;\n\n// #include <mvt_selective_pars_fragment>\n#include <logdepthbuf_pars_fragment>\nvoid main() {\n   \n    float bb = atan(vPosition.y, vPosition.x) + 3.15;\n\n    float pi = 3.14 * 1.;\n    // bb = mod(bb, 6.28);\n    if (bb > pi) {\n        discard;\n    } else { \n        float aa = mod(bb / pi, 1.0);\n        float dis = distance(vPosition, vec2(0, 0));\n        if (dis > 0.5) {\n            discard;\n        } else {\n            gl_FragColor = color;\n            gl_FragColor.a *= aa;\n        }\n    }\n\n    gl_FragColor.a *= opacity;\n    #include <tonemapping_fragment>\n    #include <colorspace_fragment>\n    \n    // #include <mvt_selective_fragment>\n    #include <logdepthbuf_fragment> \n}"))
         : "Radar" === e.type
         ? ((NR = In.merge([NR, { segmentAngle: { value: 0.25 * Math.PI } }])),
-          N_(this, ["segmentAngle"]),
+          defineUniformProxy(this, ["segmentAngle"]),
           (this.vertexShader =
             "#include <common>\nprecision mediump float;\nprecision mediump int;\n#define GLSLIFY 1\n#include <mvt_animation_pars_vertex>\nvarying vec2 vPosition;\nuniform float elapsedTime;\nuniform float speed;\nattribute float instancedRandomFactor;\nuniform float size;\nuniform float height;\n\n#include <logdepthbuf_pars_vertex>\nvoid main() {   \n    vec3 transformed = vec3(position);\n    float elapsedTime = elapsedTime * speed * .5;\n    #include <mvt_animation_vertex>\n    transformed *= size;\n    vPosition = position.xy;\n\n    vec4 worldPosition = modelMatrix * instanceMatrix * vec4(transformed, 1.0);\n    worldPosition.z += height;\n    \n    gl_Position = projectionMatrix * viewMatrix * worldPosition;\n    #include <logdepthbuf_vertex>\n}"),
           (this.fragmentShader =
             "#define GLSLIFY 1\nuniform float segmentAngle;\nuniform vec4 color;\nuniform float opacity;\nvarying vec2 vPosition;\n\n#define PI 3.1415926\n#define radius .5\n#include <logdepthbuf_pars_fragment>\n\nfloat cros(vec2 line1, vec2 line2){\n    return line1.x * line2.y - line2.x * line1.y;\n}\n\nvoid main() {\n    bool crossNPI = false;\n    float wholeAng = abs(mod(segmentAngle , PI * 2.));\n    float dis = length(vec2(vPosition.xy - vec2(0.0)));\n\n    // if(wholeAng < -1.0*PI){\n    //     crossNPI = true;\n    //     wholeAng = 2.0*PI + endAng-startAng;\n    // }\n    if (dis<radius) {\n        vec2 nV = normalize(vPosition.xy);\n        float angle = 0.0;\n        if(nV.x > 0.0 && abs(nV.y) < 0.01) {\n            angle = 0.5*PI;\n        }\n        else if (nV.x<0.0 && abs(nV.y) < 0.01) {\n            angle = -0.5*PI;\n        }\n        else {\n            angle = atan(nV.x,nV.y);\n        }\n\n        if (angle<.0) {\n            angle = 2. * PI + angle;\n        }\n\n        float alpha = 0.1;\n\n        if (angle > 0. && angle < wholeAng) {\n            // alpha = 1.1 - (endAng-angle)/wholeAng;\n            alpha = 1.1 - (1. - (wholeAng-angle) / wholeAng);\n        }\n        \n        gl_FragColor = color;\n        gl_FragColor.a = alpha * opacity;\n    }\n    else {\n        discard;\n    }\n    #include <tonemapping_fragment>\n    #include <colorspace_fragment>\n    #include <logdepthbuf_fragment>\n}"))
         : "RadarLayered" === e.type
         ? ((NR = In.merge([NR, { sideColor: { value: [0.87, 0.98, 1, 1] } }])),
-          B_(this, ["sideColor"]),
+          defineUniformsVec4Proxy(this, ["sideColor"]),
           (this.vertexShader = FR),
           (this.fragmentShader =
             "#define GLSLIFY 1\n#define SMOOTH(r,R) (1.0-smoothstep(R-1.0,R+1.0, r))\n#define RANGE(a,b,x) ( step(a,x)*(1.0-step(b,x)) )\n#define RS(a,b,x) ( smoothstep(a-1.0,a+1.0,x)*(1.0-smoothstep(b-1.0,b+1.0,x)) )\n#define M_PI 3.1415926535897932384626433832795\n\n// #define blue1 vec4(0.74,0.95,1.00,1.)\n// #define blue2 vec4(0.87,0.98,1.00,1.)\n// #define blue3 vec4(0.35,0.76,0.83,1.)\n// #define blue4 vec4(0.953,0.969,0.89,1.)\n// #define red   vec4(1.00,0.38,0.227,1.)\n\n#define MOV(a,b,c,d,t) (vec2(a*cos(t)+b*cos(0.1*(t)), c*sin(t)+d*cos(0.1*(t))))\n// #define elapsedTime 0.01\nuniform float elapsedTime;\nuniform float speed;\nvarying vec2 vPosition;\nuniform vec4 color;\nuniform vec4 sideColor;\nuniform float opacity;\n#include <logdepthbuf_pars_fragment>\nfloat movingLine(vec2 uv, vec2 center, float radius)\n{\n    //angle of the line\n    float theta0 = 90.0 * elapsedTime * speed *.0006;\n    vec2 d = uv - center;\n    float r = sqrt( dot( d, d ) );\n    if(r<radius)\n    {\n        //compute the distance to the line theta=theta0\n        vec2 p = radius*vec2(cos(theta0*M_PI/180.0),\n            -sin(theta0*M_PI/180.0));\n        float l = length( d - p*clamp( dot(d,p)/dot(p,p), 0.0, 1.0) )* 500.;\n        d = normalize(d);\n        //compute gradient based on angle difference to theta0\n        float theta = mod(180.0*atan(d.y,d.x)/M_PI+theta0,360.0);\n        float gradient = clamp(1.0-theta/90.0,0.3,1.0);\n        return SMOOTH(l,1.0)+0.5*gradient;\n    }\n    else return 0.0;\n}\n    \n    float circle(vec2 uv, vec2 center, float radius, float width)\n{\n    float r = length(uv - center);\n    return smoothstep(radius-width,radius,r)-smoothstep(radius,radius+width,r);\n    // return SMOOTH(r-width/2.0,radius)-SMOOTH(r+width/2.0,radius);\n}\n\nfloat circle2(vec2 uv, vec2 center, float radius, float width, float opening)\n{\n    vec2 d = uv - center;\n    float r = sqrt( dot( d, d ) );\n    d = normalize(d);\n    if( abs(d.y) > opening )\n        return SMOOTH(r-width/2.0,radius)-SMOOTH(r+width/2.0,radius);\n    else\n        return 0.0;\n}\nfloat circle3(vec2 uv, vec2 center, float radius, float width)\n{\n    vec2 d = uv - center;\n    float r = sqrt( dot( d, d ) );\n    d = normalize(d);\n    float theta = 180.0*(atan(d.y,d.x)/M_PI);\n    return smoothstep(2.0, 2.1, abs(mod(theta+2.0,45.0)-2.0)) *\n        mix( 0.5, 1.0, step(45.0, abs(mod(theta, 180.0)-90.0)) ) *\n        (SMOOTH(r-width/2.0,radius)-SMOOTH(r+width/2.0,radius));\n}\n    \nfloat triangles(vec2 uv, vec2 center, float radius)\n{\n    vec2 d = uv - center;\n    return RS(-8.0, 0.0, d.x-radius) * (1.0-smoothstep( 7.0+d.x-radius,9.0+d.x-radius, abs(d.y)))\n         + RS( 0.0, 8.0, d.x+radius) * (1.0-smoothstep( 7.0-d.x-radius,9.0-d.x-radius, abs(d.y)))\n         + RS(-8.0, 0.0, d.y-radius) * (1.0-smoothstep( 7.0+d.y-radius,9.0+d.y-radius, abs(d.x)))\n         + RS( 0.0, 8.0, d.y+radius) * (1.0-smoothstep( 7.0-d.y-radius,9.0-d.y-radius, abs(d.x)));\n}\n    \nfloat _cross(vec2 uv, vec2 center, float radius)\n{\n    vec2 d = uv - center;\n    int x = int(d.x * 100.);\n    int y = int(d.y * 100.);\n    float r = sqrt( dot( d, d ) );\n    if( (r<radius) && ( (x==y) || (x==-y) ) )\n        return 1.0;\n    else return 0.0;\n}\n\nvoid main() {\n    vec4 finalColor = vec4(0.0, .0, .0, .0);\n    vec2 uv = vPosition.xy;\n    #include <logdepthbuf_fragment>\n    //center of the image\n    vec2 c = vec2(0.0, 0.0);\n    finalColor += 0.3*_cross( vPosition.xy, c, .5);\n    finalColor += ( circle(uv, c, .3, .01)\n                  + circle(uv, c, .4, .01) ) * color;\n    finalColor += (circle(uv, c, .5, .02) ) * sideColor;//+ dots(uv,c,240.0)) * blue4;\n    // finalColor += circle3(uv, c, 313.0, 4.0) * blue1;\n    // finalColor += triangles(uv, c, 315.0 + 30.0*sin(elapsedTime * speed *.0006)) * blue2;\n    finalColor += movingLine(uv, c, .5) * color;\n    finalColor += circle(uv, c, .05, .01) * color;\n    // finalColor += 0.7 * circle2(uv, c, 262.0, 1.0, 0.5+0.2*cos(elapsedTime * speed *.0006)) * blue3;\n    if( length(uv-c) < .5 ) {\n        if( length(finalColor)<0.2) {\n            discard;\n        }\n    }\n    else{\n        discard;\n    }\n\n    finalColor.a *= opacity;\n    if (finalColor.a <= 0.) {\n        discard;\n    }\n    gl_FragColor = finalColor;\n    #include <tonemapping_fragment>\n    #include <colorspace_fragment>\n}"))
@@ -57331,7 +57760,7 @@ class UR extends PR {
           (this.fragmentShader =
             "#define GLSLIFY 1\n#include <common>\n\nuniform vec4 color;\nuniform float opacity;\nuniform bool animationEffect;\nuniform float elapsedTime;\nuniform float duration;\nuniform float trail;\nuniform float center;\nuniform float radius;\n\nvarying float vEffectRatio;\nvarying vec2 vPosition;\n\n#include <mvt_selective_pars_fragment>\n#include <logdepthbuf_pars_fragment>\nvoid main() {\n    float d = distance(vPosition, vec2(0, 0));\n    if (d > 0.5) {\n        discard;\n    }\n    vec4 vColor = color;\n    float range = mod(elapsedTime, (duration + trail));\n    float percent = 0.0;\n    if (range <= duration) {\n      percent = range / duration * 2.0;\n    } else {\n      percent = 1.0;\n    }\n    float r = radius * percent;\n    \n    // 中心点\n    if (d <= center){\n      if(d > 0.99 * center && d <= center) {\n        vColor.a = 1.0 - smoothstep(0.99 * center, center, d);\n      }\n    }\n    else {\n      if (d < r) {\n        vColor.a = smoothstep(0.1, 0.9, pow(d / r, 2.0) * 0.9);\n        // 边缘抗锯齿\n        if (d >= 0.99 * r && d <= r) {\n          vColor.a *= 1.0 - smoothstep(0.99, 1.0, d / r);\n        }\n        // 拖尾渐隐\n        if (range > duration) {\n          vColor.a *= 1.0 - (range - duration) / trail;\n        }\n      }\n      else {\n        vColor.a = 0.0;\n      }\n      \n    }\n    vColor.a *= opacity;\n    gl_FragColor = vColor;\n    #include <mvt_selective_fragment>\n    #include <logdepthbuf_fragment> \n    #include <tonemapping_fragment>\n\t  #include <colorspace_fragment>\n    \n}")),
       Object.assign(this.uniforms, In.clone(OR)),
-      N_(this, ["duration", "trail", "isEmissive"]),
+      defineUniformProxy(this, ["duration", "trail", "isEmissive"]),
       this.setValues(e);
   }
 }
@@ -57482,8 +57911,8 @@ class HR extends PR {
       (this.fragmentShader =
         "#define GLSLIFY 1\n#include <common>\n\nuniform vec4 color;\nuniform vec4 lineColor;\nuniform float opacity;\n\nvarying float vIsLine;\n\n#include <mvt_selective_pars_fragment>\n\nvoid main() {\n    if (vIsLine == 1.0) {\n        gl_FragColor = lineColor;\n    }\n    else {\n        gl_FragColor = color;\n        // test\n        // gl_FragColor.r = vTest.x;\n        // gl_FragColor.g = vTest.y;\n        // gl_FragColor.b = vTest.z;\n        // gl_FragColor.a = 1.0;\n        // test end\n    }\n    gl_FragColor.a *= opacity;\n    #include <mvt_selective_fragment>\n}"),
       Object.assign(this.uniforms, In.clone(QR)),
-      N_(this, ["isEmissive", "lineWidth"]),
-      B_(this, ["lineColor"]),
+      defineUniformProxy(this, ["isEmissive", "lineWidth"]),
+      defineUniformsVec4Proxy(this, ["lineColor"]),
       this.setValues(e);
   }
 }
@@ -57547,10 +57976,16 @@ class IconPointMaterial extends CommonShaderMaterial {
       (this.transparent = !0),
       Object.assign(this.uniforms, In.clone(qR)),
       U_(this),
-      N_(this, ["size", "uShapeType", "opacity", "emissive", "isEmissive"]),
-      B_(this, ["color"]),
-      k_(this, [["offset", "uOffset"]]),
-      O_(this, [
+      defineUniformProxy(this, [
+        "size",
+        "uShapeType",
+        "opacity",
+        "emissive",
+        "isEmissive",
+      ]),
+      defineUniformsVec4Proxy(this, ["color"]),
+      defineUniformsCustomProxy(this, [["offset", "uOffset"]]),
+      defineAutoUpdatePropHook(this, [
         ["vertexColors", "MVT_USE_VERTEX_COLOR"],
         ["vertexSizes", "MVT_USE_VERTEX_SIZE"],
         ["vertexIcons", "MVT_USE_VERTEX_ICON"],
@@ -57887,7 +58322,7 @@ class tP extends CommonShaderMaterial {
       Object.assign(this.uniforms, In.clone(eP)),
       z_(this),
       U_(this),
-      N_(this, [
+      defineUniformProxy(this, [
         "width",
         "height",
         "offset",
@@ -57895,12 +58330,12 @@ class tP extends CommonShaderMaterial {
         "emissive",
         "isEmissive",
       ]),
-      k_(this, [
+      defineUniformsCustomProxy(this, [
         ["scale", "uScale"],
         ["flat", "uFlat"],
       ]),
-      k_(this, [["color", "uColor", colorToVec4]]),
-      O_(this, [["vertexColors", "MVT_USE_VERTEX_COLOR"]]),
+      defineUniformsCustomProxy(this, [["color", "uColor", colorToVec4]]),
+      defineAutoUpdatePropHook(this, [["vertexColors", "MVT_USE_VERTEX_COLOR"]]),
       Object.defineProperties(this, {
         mapSrc: {
           get: function () {
@@ -58447,8 +58882,8 @@ class mP extends CommonShaderMaterial {
       Object.assign(this.uniforms, In.clone(fP)),
       z_(this),
       U_(this),
-      k_(this, [["flat", "uFlat"]]),
-      N_(this, [
+      defineUniformsCustomProxy(this, [["flat", "uFlat"]]),
+      defineUniformProxy(this, [
         "width",
         "height",
         "offset",
@@ -59289,7 +59724,7 @@ class WP extends PR {
         "#define GLSLIFY 1\n#include <common>\n#include <map_pars_fragment>\n\n#if defined(VERTEX_COLOR4)\n    varying vec4 vColor;\n#elif defined(VERTEX_COLOR3)\n    varying vec3 vColor;\n#else\n    uniform vec4 color;\n#endif\n\nuniform float opacity;\nuniform vec3 emissive;\n\n#ifdef USE_MAP\n    varying vec2 vUv;\n#endif\n\n#include <mvt_selective_pars_fragment>\n#include <logdepthbuf_pars_fragment>\n#define MVT_EMISSIVE_SHADER\nvoid main() {\n\n    #include <logdepthbuf_fragment> \n\n    #if defined(VERTEX_COLOR4)\n        gl_FragColor = vColor;\n    #elif defined(VERTEX_COLOR3)\n        gl_FragColor = vec4(vColor, 1.0);\n    #elif defined(USE_MAP)\n        gl_FragColor = texture2D( map, vUv );\n    #else\n        gl_FragColor = color;\n    #endif\n      \n    gl_FragColor.a *= opacity;\n    vec4 out_emissive = vec4(emissive, 1.0);\n    #include <mvt_selective_fragment>\n\n    #include <tonemapping_fragment>\n\t#include <colorspace_fragment>\n}"),
       Object.assign(this.uniforms, In.clone(jP)),
       (this.defines = {}),
-      N_(this, ["emissive", "isEmissive"]),
+      defineUniformProxy(this, ["emissive", "isEmissive"]),
       Object.defineProperty(this, "map", {
         get: function () {
           return this.uniforms.map.value;
@@ -59364,9 +59799,15 @@ class ZP extends CommonShaderMaterial {
       (this.transparent = !0),
       Object.assign(this.uniforms, In.clone(KP)),
       U_(this),
-      N_(this, ["isEmissive", "height", "tailLength", "speed", "idle"]),
-      B_(this, ["color"]),
-      O_(this, [
+      defineUniformProxy(this, [
+        "isEmissive",
+        "height",
+        "tailLength",
+        "speed",
+        "idle",
+      ]),
+      defineUniformsVec4Proxy(this, ["color"]),
+      defineAutoUpdatePropHook(this, [
         ["vertexColors", "MVT_USE_VERTEX_COLOR"],
         ["vertexHeights", "MVT_USE_VERTEX_HEIGHT"],
       ]),
@@ -59396,9 +59837,9 @@ class $P extends PR {
       (this.depthWrite = !1),
       e.vertexSizes || (JP = In.merge([JP, { size: { value: 100 } }])),
       Object.assign(this.uniforms, In.clone(JP)),
-      N_(this, ["borderWidth", "opacity", "isEmissive"]),
-      B_(this, ["borderColor"]),
-      O_(this, [
+      defineUniformProxy(this, ["borderWidth", "opacity", "isEmissive"]),
+      defineUniformsVec4Proxy(this, ["borderColor"]),
+      defineAutoUpdatePropHook(this, [
         ["vertexColors", "MVT_USE_VERTEX_COLOR"],
         ["vertexSizes", "MVT_USE_VERTEX_SIZE"],
       ]),
@@ -59496,9 +59937,9 @@ class iD extends CommonShaderMaterial {
       (this.vertexShader =
         "#define GLSLIFY 1\n#include <common>\nuniform sampler2D gradientMap;\n\nvarying vec2 vUv;\n\nvoid main() { \n    \n    gl_Position = vec4(position, 1.0);\n    // vUv = position.xy;\n    vUv = vec2((position.x + 1.0) * 0.5, (position.y + 1.0) * 0.5);\n    // vec4 gray = texture2D(gradientMap, vUv);\n\n    // vec4 m0 = matrixWorldInverse * vec4(gl_Position.xy, 0.0, 1.0);\n    // vec4 m1 = matrixWorldInverse * vec4(gl_Position.xy, 1.0, 1.0);\n    // m0 /= m0.w;\n    // m1 /= m1.w;\n    // vec4 pixel = m0 + (-m0.z / (m1.z - m0.z)) * (m1 - m0);\n    // pixel.z = 100. * gray.a;\n\n    // gl_Position = projectionMatrix * pixelToViewMatrix * vec4(pixel.xyz, 1.0);\n}"),
       Object.assign(this.uniforms, In.clone(tD)),
-      N_(this, ["opacity", "resolution", "isEmissive"]),
-      k_(this, []),
-      O_(this, []),
+      defineUniformProxy(this, ["opacity", "resolution", "isEmissive"]),
+      defineUniformsCustomProxy(this, []),
+      defineAutoUpdatePropHook(this, []),
       (this._cachedGradient = null),
       Object.defineProperties(this, {
         gradient: {
@@ -59569,15 +60010,15 @@ class sD extends CommonShaderMaterial {
       (this.vertexShader =
         "#define GLSLIFY 1\n#include <common>\n\nattribute float instancedWeight;\n\nuniform float radius;\nuniform float maxValue;\nuniform float minValue;\nuniform bool keepSize;\nuniform float attenuateMValueFactor;\nuniform float pixelRatio;\nuniform vec2 resolution;\n\nvarying vec2 vUv;\nvarying float vWeight;\n\n#include <logdepthbuf_pars_vertex>\n#include <mvt_extra_vertex_utils>\n\nvoid main() { \n\n    float range = (maxValue - minValue) * attenuateMValueFactor;\n\n    vec4 worldPosition = (modelMatrix * vec4(position, 1.0));\n    float pixelSize = getPixelSize(worldPosition.xyz);\n\n    if (keepSize) {\n        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position * radius * pixelSize, 1.0);\n        range *= pixelSize;\n    } else {\n        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position * radius, 1.0);\n    }\n    \n    // gl_Position = vec4(position, 1.0);\n    // vZDepth = (gl_Position.z / gl_Position.w + 1.0) * 0.5;\n   \n    vUv = vec2(position.x + 0.5, position.y + 0.5);\n    \n    vWeight = (instancedWeight - minValue) / (maxValue + range - minValue);\n\n    #include <logdepthbuf_vertex>\n}"),
       Object.assign(this.uniforms, In.clone(nD)),
-      N_(this, [
+      defineUniformProxy(this, [
         "radius",
         "minValue",
         "maxValue",
         "keepSize",
         "attenuateMValueFactor",
       ]),
-      k_(this, []),
-      O_(this, []);
+      defineUniformsCustomProxy(this, []),
+      defineAutoUpdatePropHook(this, []);
     const t = this.createCircleMap();
     (this.uniforms.circleMap.value = t),
       this.setValues(e),
@@ -59631,15 +60072,15 @@ class aD extends CommonShaderMaterial {
       (this.vertexShader =
         "#define GLSLIFY 1\n#include <common>\nattribute vec3 instancedPosition;\n\nuniform float radius;\nuniform bool keepSize;\nuniform float pixelRatio;\nuniform vec2 resolution;\n\n#include <logdepthbuf_pars_vertex>\n#include <mvt_extra_vertex_utils>\n\nvoid main() { \n\n    vec4 worldPosition = (modelMatrix * vec4(position, 1.0));\n    float pixelSize = getPixelSize(worldPosition.xyz);\n    if (keepSize) {\n        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position * radius * pixelSize * 1.1, 1.0);\n    } else {\n        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position * radius * 1.1, 1.0);\n    }\n    #include <logdepthbuf_vertex>\n}"),
       Object.assign(this.uniforms, In.clone(rD)),
-      N_(this, [
+      defineUniformProxy(this, [
         "radius",
         "minValue",
         "maxValue",
         "keepSize",
         "attenuateMValueFactor",
       ]),
-      k_(this, []),
-      O_(this, []),
+      defineUniformsCustomProxy(this, []),
+      defineAutoUpdatePropHook(this, []),
       this.setValues(e);
   }
 }
@@ -60283,7 +60724,7 @@ class _D extends CommonShaderMaterial {
       (this.vertexShader =
         "#define GLSLIFY 1\n#include <common>\n\n#ifdef USE_A_COLOR\nattribute vec4 aColor;\n#endif\n\nattribute float totalLength;\nattribute float aWidth;\nattribute float lengths;\nattribute float randomFactor;\n\nuniform float elapsedTime;\nuniform bool vertexColors;\nuniform vec4 uColor;\nuniform float lineWidth;\nuniform float height;\nuniform float opacity;\n\nvarying vec2 vUV;\nvarying vec4 vColor;\nvarying float vCounter;\nvarying float vLength;\nvarying float vTotalLength;\nvarying float vZoomUnits;\n\n#ifdef USE_ANIMATION\nuniform float animationSpeed;\nuniform float animationTailType;\nuniform float animationTailRatio;\nuniform float animationTailLength;\nuniform float animationIdle;\nvarying float vAnimationOpacity;\n#endif\n\n#include <fog_pars_vertex>\n#include <logdepthbuf_pars_vertex>\n#include <mvt_keepsize_pars_vertex>\n#include <mvt_extra_vertex_utils>\n\n#ifdef MVT_USE_VERTEX_ZINDEX\nattribute float layerIndex;\nuniform float maxLayerIndex;\n\n#define WORLD_DISTANCE_NEAR 100000.0\n#define WORLD_DISTANCE_MID 1500000.0\n#define WORLD_DISTANCE_FAR 6000000.0\n#define LAYER_INDEX (maxLayerIndex - layerIndex)\n// 在mid和far交接那块，因为线数据特别碎，导致layerIndex很多，地面会陷很深，还没找到比较好的函数来解决这个case\n\nfloat y1(float x) {\n    return pow(LAYER_INDEX * log2(x * 5.), 1.5);\n}\n\nfloat y2(float x) {\n    float xx = x - WORLD_DISTANCE_NEAR;\n    return LAYER_INDEX * log2(xx) + y1(WORLD_DISTANCE_NEAR);\n}\n\nfloat y3(float x) {\n    float xx = x - WORLD_DISTANCE_MID;\n    return log2(LAYER_INDEX * xx) + y2(WORLD_DISTANCE_MID);\n}\n\nfloat y4(float x) {\n    return 110. * LAYER_INDEX + y3(WORLD_DISTANCE_FAR);\n}\n\n/**\ny1 = pow(x, 2)                  x: (0, near]\ny2 = (x - near) + y1(near)      x: (near, mid]\ny3 = sqrt(x - mid) + y2(mid)    x: (mid, far]\ny4 = n + y3(far)                x: (far, +∞)\n*/\nfloat y(float x) {\n    if (x <= WORLD_DISTANCE_NEAR) {\n        return y1(x);\n    }\n    if (x > WORLD_DISTANCE_NEAR && x <= WORLD_DISTANCE_MID) {\n        return y2(x);\n    }\n    else if (x > WORLD_DISTANCE_MID && x <= WORLD_DISTANCE_FAR) {\n        return y3(x);\n    }\n    else if (x > WORLD_DISTANCE_FAR) {\n        return y4(x);\n    }\n}\n#endif\n\nvoid main() {\n\n    #ifdef USE_A_COLOR\n        vColor = aColor;\n    #else\n        vColor = uColor;\n    #endif\n\n    vUV = uv;\n    // vCounter = counter;\n    vLength = lengths;\n    vTotalLength = totalLength;\n\n    #include <begin_vertex>\n    vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);\n    float pixelSize = getPixelSize(worldPosition.xyz);\n    vZoomUnits = pixelSize;\n\n    vec2 extrude = normal.xy * aWidth / 2.0;\n    if (keepSize) {\n        extrude *= pixelSize;\n    }\n    worldPosition.xy += extrude;\n    worldPosition.z += height;\n\n    #ifdef MVT_USE_VERTEX_ZINDEX\n        vec3 worldToEye = cameraPosition - worldPosition.xyz;\n        float dis = length(worldToEye);\n        float layerGap = maxLayerIndex - layerIndex;\n        // float zOffset = log2(layerGap * dis + 1.0);\n        // float zOffset = exp(layerGap * log2(dis * 10.0));\n        // float zOffset = pow(layerGap * log2(dis * 5.0), 1.5);\n        float zOffset = y(dis);\n        worldPosition.z -= zOffset;\n    #endif\n    \n    #ifdef USE_ANIMATION\n        float tailLength = animationTailType == 1.0 ? vTotalLength * animationTailRatio : animationTailLength;\n\n        #ifdef ANIMATION_CHAOS\n            float currentTime = elapsedTime + randomFactor * 1000.0 * 3600.;\n        #else\n            float currentTime = elapsedTime;\n        #endif\n        float currentLength = mod(currentTime * animationSpeed, vTotalLength + tailLength + animationIdle * animationSpeed);\n        vAnimationOpacity = (vLength - (currentLength - tailLength)) / tailLength;\n    #endif\n\n    vec4 mvPosition = viewMatrix * worldPosition;\n    gl_Position = projectionMatrix * mvPosition;\n\n    // #ifdef MVT_USE_VERTEX_ZINDEX\n    //     float depth = layerGap * 10.0;\n    //     gl_Position.z = gl_Position.z + depth;\n    // #endif\n\n    #include <beginnormal_vertex>\n    #include <fog_vertex>\n    #include <logdepthbuf_vertex>\n}"),
       Object.assign(this.uniforms, In.clone(gD)),
-      N_(this, [
+      defineUniformProxy(this, [
         "map",
         "mapGap",
         "lineWidth",
@@ -60303,8 +60744,8 @@ class _D extends CommonShaderMaterial {
         "animationIdle",
         "isEmissive",
       ]),
-      k_(this, [["color", "uColor", colorToVec4]]),
-      O_(this, [
+      defineUniformsCustomProxy(this, [["color", "uColor", colorToVec4]]),
+      defineAutoUpdatePropHook(this, [
         ["vertexColors", "USE_A_COLOR"],
         ["vertexZIndex", "MVT_USE_VERTEX_ZINDEX"],
         ["enableAnimation", "USE_ANIMATION"],
@@ -61190,9 +61631,14 @@ class YD extends CommonShaderMaterial {
       }),
       Object.assign(this.uniforms, In.clone(XD)),
       e.mapSrc && ((this.mapSrc = e.mapSrc), delete e.mapSrc),
-      N_(this, ["opacity", "mapScale", "isEmissive", "normalOffset"]),
-      B_(this, ["color"]),
-      O_(this, [["vertexColors", "MVT_USE_VERTEX_COLOR"]]),
+      defineUniformProxy(this, [
+        "opacity",
+        "mapScale",
+        "isEmissive",
+        "normalOffset",
+      ]),
+      defineUniformsVec4Proxy(this, ["color"]),
+      defineAutoUpdatePropHook(this, [["vertexColors", "MVT_USE_VERTEX_COLOR"]]),
       U_(this),
       G_(this),
       (this.emissiveEnabled = !0),
@@ -61582,7 +62028,7 @@ class sL extends CommonShaderMaterial {
       (this.vertexShader =
         "#define GLSLIFY 1\n#include <common>\n#include <bsdfs>\n#include <fog_pars_vertex>\n#include <logdepthbuf_pars_vertex>\n#ifdef USE_A_COLOR\nattribute vec4 aColor;\n#endif\n\nattribute float counter;\nattribute float totalDistance;\nattribute float distances;\n\nuniform float elapsedTime;\nuniform bool vertexColors;\nuniform vec4 uColor;\nuniform float opacity;\n\nvarying vec2 vUV;\nvarying vec4 vColor;\nvarying float vCounter;\nvarying float vDistance;\nvarying float vTotalDistance;\n\n#ifdef USE_ANIMATION\nuniform float animationSpeed;\nuniform float animationTailType;\nvarying float vAnimationTailType;\nuniform float animationTailRatio;\nuniform float animationTailLength;\nuniform float animationIdle;\nvarying float vAnimationOpacity;\n#endif\n\nvoid main() {\n\n    #ifdef USE_A_COLOR\n        vColor = aColor;\n    #else\n        vColor = uColor;\n    #endif\n\n    vUV = uv;\n    vCounter = counter;\n    vDistance = distances;\n    vTotalDistance = totalDistance;\n\n    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n\n    #ifdef USE_ANIMATION\n        if (animationTailType < 3.0) {\n            float tailLength = animationTailType == 1.0 ? totalDistance * animationTailRatio : animationTailLength;\n            float currentLength = mod(elapsedTime * animationSpeed, totalDistance + tailLength + animationIdle * animationSpeed);\n            vAnimationOpacity = (distances - (currentLength - tailLength)) / tailLength;\n        }\n        else if (animationTailType == 3.0) {\n            vAnimationOpacity = 1.0 - mod(elapsedTime * animationSpeed / 1000.0, 1.0) + uv.y;\n        } \n        else if (animationTailType == 4.0) {\n            vAnimationTailType = animationTailType;\n        }\n    #endif\n\n    #include <beginnormal_vertex>\n    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);\n    #include <fog_vertex>\n\n    #include <logdepthbuf_vertex>\n}"),
       Object.assign(this.uniforms, In.clone(nL)),
-      N_(this, [
+      defineUniformProxy(this, [
         "map",
         "minOpacity",
         "maxOpacity",
@@ -61597,8 +62043,8 @@ class sL extends CommonShaderMaterial {
         "animationRatio",
         "isEmissive",
       ]),
-      k_(this, [["color", "uColor", colorToVec4]]),
-      O_(this, [
+      defineUniformsCustomProxy(this, [["color", "uColor", colorToVec4]]),
+      defineAutoUpdatePropHook(this, [
         ["vertexColors", "USE_A_COLOR"],
         ["enableAnimation", "USE_ANIMATION"],
       ]),
@@ -61784,7 +62230,7 @@ class lL extends PR {
       (this.fragmentShader =
         "#define GLSLIFY 1\n#include <common>\n\nvarying vec3 vNormal;\nuniform vec4 color;\n\nvoid main() {\n    vec3 z = vec3(0.0, 0.0, 1.0); // z轴方向单位向量\n    float x = abs(dot(vNormal, z)); // 点乘结果余弦值绝对值范围[0,1]\n    float alpha = pow(1.0 - x, 2.0);\n    gl_FragColor = vec4(vec3(color[0], color[1], color[2]), alpha);\n}"),
       Object.assign(this.uniforms, In.clone(oL)),
-      N_(this, ["maxHeight", "isEmissive"]),
+      defineUniformProxy(this, ["maxHeight", "isEmissive"]),
       this.setValues(e);
   }
 }
@@ -61971,8 +62417,8 @@ class dL extends PR {
       (this.side = 2),
       (this.transparent = !0),
       Object.assign(this.uniforms, In.clone(uL)),
-      N_(this, ["lightPos", "isEmissive"]),
-      O_(this, [
+      defineUniformProxy(this, ["lightPos", "isEmissive"]),
+      defineAutoUpdatePropHook(this, [
         ["isMultiColor", "USE_MULTICOLOR"],
         ["isLight", "USE_LIGHT"],
       ]),
@@ -62077,8 +62523,8 @@ class mL extends PR {
         "#define GLSLIFY 1\n#include <common>\n\nuniform sampler2D gradientMap;\nuniform float opacity;\n\nvarying vec2 vUv;\n\n#include <logdepthbuf_pars_fragment>\nvoid main() {\n    gl_FragColor = texture2D(gradientMap, vUv.yx);\n    gl_FragColor.a *= opacity;\n\n    #include <logdepthbuf_fragment>\n}"),
       (this.side = 2),
       (this.transparent = !0),
-      N_(this, ["maxHeight", "isEmissive"]),
-      O_(this, [["vertexHeights", "MVT_USE_VERTEX_HEIGHT"]]),
+      defineUniformProxy(this, ["maxHeight", "isEmissive"]),
+      defineAutoUpdatePropHook(this, [["vertexHeights", "MVT_USE_VERTEX_HEIGHT"]]),
       Object.assign(this.uniforms, In.clone(fL)),
       (this._cachedGradient = null),
       Object.defineProperties(this, {
@@ -62260,8 +62706,8 @@ class vL extends PR {
         "#define GLSLIFY 1\n#include <common>\n\nuniform sampler2D gradientMap;\nuniform float opacity;\n\nvarying vec2 vUv;\n\n#include <logdepthbuf_pars_fragment>\nvoid main() {\n    gl_FragColor = texture2D(gradientMap, vUv.yx);\n    gl_FragColor.a *= opacity;\n\n    #include <logdepthbuf_fragment>\n}"),
       (this.side = h),
       (this.transparent = !0),
-      N_(this, ["maxHeight", "sphereIndex", "isEmissive"]),
-      O_(this, [["vertexHeights", "MVT_USE_VERTEX_HEIGHT"]]),
+      defineUniformProxy(this, ["maxHeight", "sphereIndex", "isEmissive"]),
+      defineAutoUpdatePropHook(this, [["vertexHeights", "MVT_USE_VERTEX_HEIGHT"]]),
       Object.assign(this.uniforms, In.clone(_L)),
       (this._cachedGradient = null),
       Object.defineProperties(this, {
@@ -87767,9 +88213,21 @@ exports.Heatmap3D = makeHeatmap3DClass(
   CommonShaderMaterial,
   In,
   Xn,
-  N_,
+  defineUniformProxy,
   CanvasTexture
 );
+
+exports.HeatmapBlock = makeHeatmapBlockClass(
+  Mesh,
+  PlaneGeometry,
+  CommonShaderMaterial,
+  In,
+  Xn,
+  defineUniformProxy,
+  CanvasTexture
+);
+
+
 
 exports.Icon = lP;
 exports.IconPoint = JR;
@@ -90967,7 +91425,7 @@ exports.Wireframe3DTilesMaterialManager = class extends yT {
   }
 };
 
-exports.colorUtils = P_;
+exports.colorUtils = commonUtils;
 exports.geojsonUtils = aA;
 exports.modelUtils = Ew;
 exports.urlUtils = jm;
