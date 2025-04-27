@@ -181,6 +181,8 @@ export function makeHeatmapBlockClass(
     setData() {
       let data = this.dataSource.data;
 
+      if (!data?.position?.length) return;
+
       let heatmapCanvas = new HeatmapCanvas({
         size: this._size,
         gradient: this._gradient,
@@ -192,7 +194,6 @@ export function makeHeatmapBlockClass(
       const canvas = new createCanvas(1, 1);
 
       const lerpData = this.lerpData(data);
-      console.log(data, lerpData);
 
       heatmapCanvas
         .setData(lerpData)

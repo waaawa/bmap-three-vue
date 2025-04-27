@@ -119,7 +119,7 @@ export class HeatmapCanvas {
    */
   setCanvas(canvas) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext("2d");
+    this.ctx = canvas.getContext("2d", { willReadFrequently: true });
 
     canvas.width = this.rw;
     canvas.height = this.rh;
