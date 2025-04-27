@@ -255,7 +255,7 @@ export default {
         config: {
           opacity: 1,
           size: 8, // 热力绘制半径
-          radiationSize: 3, // 效果半径
+          radiationSize: 1, // 效果半径
           maxValue: 10, // 最大热力值
           resolution: 512,
           attenuateMValueFactor: 1, //径向渐变速度

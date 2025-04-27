@@ -21,9 +21,9 @@
         this.max = max || 1;
         this.data = [];
 
-        this.resolution = resolution || 100;
+        this.resolution = resolution || 0;
 
-        this.radiationSize = radiationSize || 0;
+        this.radiationSize = radiationSize;
 
         this.defaultGradient = {
           0.4: "blue",
@@ -97,8 +97,8 @@
         );
 
         // 宽高size的倍数, 不包含边缘
-        this.fullWidth = this.xCount * this.size + this.size;
-        this.fullHeight = this.yCount * this.size + this.size;
+        this.fullWidth = this.xCount * this.size;
+        this.fullHeight = this.yCount * this.size;
         this.aspectRatio = this.fullWidth / this.fullHeight;
         this.aspectRatio2 = this.fullHeight / this.fullWidth;
 
@@ -109,6 +109,8 @@
 
         this.ydiv = this.fullHeight - this.height;
         this.xdiv = this.fullWidth - this.width;
+
+        this.resolution = this.resolution || this.fullWidth;
 
         this.rw = this.resolution;
         this.rh = this.resolution * this.aspectRatio2;
@@ -171,8 +173,8 @@
         const imgData = this.ctx.getImageData(
           left,
           top,
-          Math.round(this.size / this.scale),
-          Math.round(this.size / this.scale)
+          Math.ceil(this.size / this.scale),
+          Math.ceil(this.size / this.scale)
         );
         // 设置这一段imgData的透明度
         const data = imgData.data;
@@ -231,6 +233,7 @@
 
                 // 阶梯式降低的透明度， 距离中间越远 透明度越低
                 const a = Math.floor(alpha * (1 - distance * 0.3));
+                // const a = alpha;
 
                 map[key] = Math.max(map[key] || 0, a);
               }
@@ -269,10 +272,24 @@
     const data = {
       position: [
         [0, 0],
+        [20, 20],
         [50, 50],
+        [80, 80],
+        [100, 100],
+        [0, 100],
+        [20, 80],
+        [50, 20],
+        [80, 50],
+        [100, 0],
+        [0, 50],
+        [20, 50],
+        [50, 0],
+        [80, 20],
         [100, 100],
       ],
-      count: [1, 5, 10],
+      count: [1, 8, 5, 10,
+        3, 2, 4, 6, 7, 9, 1, 8, 5, 10, 3, 2, 4, 6, 7, 9
+      ],
     }
 
     const heatmap = new HeatmapCanvas({

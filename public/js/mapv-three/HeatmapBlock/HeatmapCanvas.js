@@ -219,7 +219,7 @@ export class HeatmapCanvas {
             const distance = Math.max(Math.abs(i - mid), Math.abs(j - mid));
 
             // 阶梯式降低的透明度， 距离中间越远 透明度越低
-            const a = Math.floor(alpha * (1 - distance * 0.3));
+            const a = Math.floor(alpha * (1 - distance * (1 / (mid + 2))));
             // const a = alpha;
 
             map[key] = Math.max(map[key] || 0, a);
